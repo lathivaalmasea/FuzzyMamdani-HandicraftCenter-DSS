@@ -3,9 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.patches import FancyBboxPatch
-import warnings
-warnings.filterwarnings('ignore')
 
 # ─────────────────────────────────────────────
 #  PAGE CONFIG
@@ -201,18 +198,10 @@ tbody tr:hover { background: rgba(99,102,241,0.1) !important; }
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 
-/* rule table */
-.rule-row {
-    background: rgba(30,27,75,0.6);
-    border: 1px solid rgba(99,102,241,0.2);
-    border-radius: 8px; padding: 10px 14px; margin-bottom:8px;
-    display: flex; align-items: center; gap:10px;
-}
-
 /* button csv */  
 .stDownloadButton > button {
     height: 55px !important;
-    width: 150%;
+    width: 100%;
     border-radius: 10px !important;
 }
 </style>
@@ -415,6 +404,13 @@ def get_kategori(score):
     else:
         return "RENDAH"
 
+def get_result_style(kat):
+    if kat == "TINGGI":
+        return "result-box", "result-score", "🥇"
+    elif kat == "SEDANG":
+        return "result-box-sedang", "result-score-sedang", "🥈"
+    return "result-box-rendah", "result-score-rendah", "🥉"
+
 def fuzzy_mamdani(c1, c2, c3, c4, c5):
     fuzz = fuzzify(c1, c2, c3, c4, c5)
     inf  = inferensi(fuzz)
@@ -542,8 +538,6 @@ if menu == "🏠 Dashboard":
     with col_h2:
         total_all = len(df_all)
         total_hc  = len(df_hc)
-        top_dest  = df_ranked.iloc[0]["Location_ID"] if len(df_ranked) > 0 else "-"
-        top_score = df_ranked.iloc[0]["Skor_Kinerja"] if len(df_ranked) > 0 else 0
 
         st.markdown(f"""
         <div class="card" style='text-align:center;height:180px'>
@@ -554,7 +548,7 @@ if menu == "🏠 Dashboard":
         """, unsafe_allow_html=True)
 
     # Kriteria cards
-    st.markdown("#### 📌 Kriteria Penilaian")
+    st.markdown("#### Kriteria Penilaian")
     cols = st.columns(5)
     kriteria = [
         ("C1", "Visitor Count", "(52 – 799)", "Benefit", "👥", "#6366f1"),
@@ -579,7 +573,7 @@ if menu == "🏠 Dashboard":
             """, unsafe_allow_html=True)
 
     # Bottom stats
-    st.markdown("#### 📊 Ringkasan Sistem")
+    st.markdown("#### Ringkasan Sistem")
     bcols = st.columns(4)
     stats = [
         ("Total Data", str(total_all), "(dataset)"),
@@ -608,7 +602,7 @@ elif menu == "📂 Dataset":
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns([5, 1])
+    col1, col2 = st.columns([8, 2])
     with col1:
         st.markdown("""
         <div class="info-box">
@@ -619,7 +613,13 @@ elif menu == "📂 Dataset":
     with col2:
         csv_data = df_hc[["Location_ID","Heritage_Type","Visitor_Count","Ticket_Price",
                           "Tourist_Satisfaction","Revenue_Generated","Operational_Cost"]].to_csv(index=False)
-        st.download_button("Export CSV", csv_data, "handicraft_center.csv", "text/csv")
+        st.download_button(
+            "Export CSV", 
+            csv_data, 
+            "handicraft_center.csv", 
+            "text/csv",
+            use_container_width=True
+        )
 
     st.markdown(f"""
     <div class="info-box">
@@ -650,8 +650,6 @@ elif menu == "🔶 Fuzzifikasi":
     bg_color = "#0f172a"
     grid_color = "#1e1b4b"
     text_color = "#e2e8f0"
-    colors = {"rendah":"#ef4444","sedang":"#f59e0b","tinggi":"#10b981",
-              "murah":"#3b82f6","mahal":"#ef4444"}
 
     def plot_mf(ax, x_range, mf_funcs, labels, title, colors_map):
         ax.set_facecolor(grid_color)
@@ -855,9 +853,7 @@ elif menu == "⚙️ Hitung SPK":
         }
 
         # Result display
-        box_class = "result-box" if kat=="TINGGI" else ("result-box-sedang" if kat=="SEDANG" else "result-box-rendah")
-        score_class= "result-score" if kat=="TINGGI" else ("result-score-sedang" if kat=="SEDANG" else "result-score-rendah")
-        emoji = "🥇" if kat=="TINGGI" else ("🥈" if kat=="SEDANG" else "🥉")
+        box_class, score_class, emoji = get_result_style(kat)
 
         st.markdown(f"""
         <div class="{box_class}">
@@ -915,7 +911,6 @@ elif menu == "🔍 Proses Fuzzy":
 
         fuzz_rows = []
         for var, (name, val, terms) in var_info.items():
-            term_keys = list(fuzz[var].keys())
             row_data = {"Kriteria": f"{name} ({val})", "Nilai Input": val}
             for t in terms:
                 tk = t.lower()
@@ -988,8 +983,7 @@ elif menu == "🔍 Proses Fuzzy":
 
         # 4. Defuzzifikasi
         st.markdown("#### 4️⃣ Defuzzifikasi (Centroid)")
-        box_cls = "result-box" if kat=="TINGGI" else ("result-box-sedang" if kat=="SEDANG" else "result-box-rendah")
-        score_cls = "result-score" if kat=="TINGGI" else ("result-score-sedang" if kat=="SEDANG" else "result-score-rendah")
+        box_cls, score_cls, _ = get_result_style(kat)
         st.markdown(f"""
         <div class="{box_cls}">
             <div style='font-size:.85rem;color:#94a3b8;margin-bottom:4px;'>Nilai crisp (hasil akhir)</div>
@@ -1019,13 +1013,6 @@ elif menu == "🏆 Hasil & Ranking":
         # Show table with color-coded kategori
         show_rank = df_ranked[["Rank","Location_ID","Skor_Kinerja","Kategori"]].copy()
         show_rank.columns = ["Rank", "Destinasi", "Skor Kinerja", "Kategori"]
-
-        def style_kategori(val):
-            if val == "TINGGI":
-                return "background-color:#059669;color:white;border-radius:10px;padding:2px 8px;font-weight:700;"
-            elif val == "SEDANG":
-                return "background-color:#d97706;color:white;border-radius:10px;padding:2px 8px;font-weight:700;"
-            return "background-color:#dc2626;color:white;border-radius:10px;padding:2px 8px;font-weight:700;"
 
         st.dataframe(
             show_rank,
