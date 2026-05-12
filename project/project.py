@@ -65,7 +65,7 @@ st.markdown("""
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-attachment: scroll;
 
     color: #f0fdf4;
 }
@@ -224,7 +224,59 @@ thead tr th {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
-            
+
+/* PAGE TITLE */
+.page-title{
+    font-family:'Marcellus SC', serif;
+    font-size:3rem;
+    color:#F8C537;
+    margin-top:-8px;
+    margin-bottom:18px;
+    letter-spacing:1px;
+}
+
+/* DATASET INFO */
+.dataset-info{
+    font-family:'Poppins', sans-serif;
+    font-size:1.08rem;
+    font-weight:500;
+    color:#F3E8CC;
+    margin-top:4px;
+    margin-bottom:10px;
+}
+
+.dataset-info span{
+    color:#8BB8FF;
+    font-weight:600;
+}
+
+.dataset-total{
+    font-family:'Poppins', sans-serif;
+    font-size:1.18rem;
+    font-weight:600;
+    color:#F3E8CC;
+    margin-bottom:18px;
+}
+
+.dataset-total span{
+    color:#F8C537;
+}
+
+/* EXPORT BUTTON */
+.stDownloadButton button{
+    background:rgba(10,15,30,0.82) !important;
+    color:#F3E8CC !important;
+    border:none !important;
+    border-radius:14px !important;
+    padding:10px 18px !important;
+    font-family:'Poppins', sans-serif !important;
+    font-size:0.92rem !important;
+    font-weight:500 !important;
+    transition:0.25s;
+    width:170px;
+    height:48px;
+}
+
 .footer-card{
     margin-top:30px;
     margin-bottom:10px;
@@ -239,6 +291,75 @@ thead tr th {
     box-shadow:
         0 8px 20px rgba(0,0,0,0.18);
 }
+            
+.db-icon-wrap{
+    width:58px;
+    height:58px;
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+}
+
+.db-icon{
+    width:58px;
+    height:58px;
+    object-fit:contain;
+    display:block;
+}
+            
+.note-high{
+    color:#00A86B;
+}
+
+/* FUZZY NOTE */
+.fuzzy-note{
+    margin-top:22px;
+    margin-bottom:10px;
+    background:#F3E8CC;
+    border-radius:22px;
+    padding:22px 28px;
+    text-align:center;
+    box-shadow:
+        0 8px 22px rgba(0,0,0,0.18);
+}
+
+.fuzzy-note-title{
+    font-family:'Marcellus SC', serif;
+    font-size:1.35rem;
+    color:#1C4D2D;
+    margin-bottom:10px;
+}
+
+.fuzzy-note-text{
+    font-family:'Poppins', sans-serif;
+    font-size:1rem;
+    font-weight:500;
+    color:#244c34;
+    margin-bottom:14px;
+}
+
+.fuzzy-note-tags{
+    font-family:'Poppins', sans-serif;
+    font-size:1rem;
+    font-weight:600;
+    color:#1C4D2D;
+    line-height:1.9;
+}
+
+.note-low{
+    color:#E53935;
+}
+
+.note-mid{
+    color:#D4A017;
+}
+
+.note-high{
+    color:#00A86B;
+}
+     
 </style>
 """.replace("%s", bg_img), unsafe_allow_html=True)
 
@@ -533,11 +654,28 @@ if menu == "Dashboard":
             return f.read()
 
     svg_db       = load_svg("files-db.svg")
+    import base64
+    svg_db_b64 = base64.b64encode(svg_db.encode()).decode()
+
     svg_visitor  = load_svg("visitor-count.svg")
+    import base64
+    svg_visitor_b64 = base64.b64encode(svg_visitor.encode()).decode()
+
     svg_ticket   = load_svg("ticket.svg")
+    import base64
+    svg_ticket_b64 = base64.b64encode(svg_ticket.encode()).decode()
+
     svg_rate     = load_svg("rate.svg")
+    import base64
+    svg_rate_b64 = base64.b64encode(svg_rate.encode()).decode()
+
     svg_revenue  = load_svg("revenue-bag.svg")
+    import base64
+    svg_revenue_b64 = base64.b64encode(svg_revenue.encode()).decode()
+
     svg_ops      = load_svg("operational.svg")
+    import base64
+    svg_ops_b64 = base64.b64encode(svg_ops.encode()).decode()
 
 
     st.markdown("""
@@ -783,7 +921,9 @@ if menu == "Dashboard":
     with col_total:
         st.markdown(f"""
         <div class="total-card">
-            <div style='width:58px;height:58px;margin-bottom:10px;'>{svg_db}</div>
+            <div class="db-icon-wrap">
+                <img src="data:image/svg+xml;base64,{svg_db_b64}" class="db-icon">
+            </div>
             <div class="total-num">{total_all}</div>
             <div class="total-label">Total Data</div>
         </div>
@@ -840,39 +980,42 @@ if menu == "Dashboard":
 # ────────────────────────────────────────────────────── #
 if menu == "Dataset":
     st.markdown("""
-    <div class="section-header">
-        <span class="section-num">2</span>
-        DATASET
+    <div class="page-title">
+        Dataset
     </div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([8, 2])
+
     with col1:
         st.markdown("""
-        <div class="info-box">
-            <b>Filter Heritage_Type:</b>
-            <span style='color:#818cf8;font-weight:700;'>Handicraft Center</span>
+        <div class="dataset-info">
+            Filter Heritage_Type:
+            <span>Handicraft Center</span>
         </div>
         """, unsafe_allow_html=True)
+
     with col2:
         csv_data = df_hc[["Location_ID","Heritage_Type","Visitor_Count","Ticket_Price",
-                          "Tourist_Satisfaction","Revenue_Generated","Operational_Cost"]].to_csv(index=False)
+                      "Tourist_Satisfaction","Revenue_Generated","Operational_Cost"]].to_csv(index=False)
+
         st.download_button(
-            "Export CSV", 
-            csv_data, 
-            "handicraft_center.csv", 
-            "text/csv",
-            use_container_width=True
+            "Export CSV",
+            csv_data,
+            "handicraft_center.csv",
+            "text/csv"
         )
 
     st.markdown(f"""
-    <div class="info-box">
-        📊 <b>Total Data Setelah Filter: {len(df_hc)} baris</b>
+    <div class="dataset-total">
+        Total Data Setelah Filter:
+        <span>{len(df_hc)}</span> baris
     </div>
     """, unsafe_allow_html=True)
 
     display_cols = ["Location_ID","Heritage_Type","Visitor_Count","Ticket_Price",
-                    "Tourist_Satisfaction","Revenue_Generated","Operational_Cost"]
+                "Tourist_Satisfaction","Revenue_Generated","Operational_Cost"]
+
     show_df = df_hc[display_cols].copy()
     show_df.index = show_df.index + 1
     show_df.columns = ["Destinasi","Heritage Type","Visitor Count","Ticket Price",
@@ -883,11 +1026,10 @@ if menu == "Dataset":
 # ────────────────────────────────────────────────────── #
 #                  PAGE 3 – FUZZIFIKASI                  #
 # ────────────────────────────────────────────────────── #
-elif menu == "Fuzzifikasi":
+if menu == "Fuzzifikasi":
     st.markdown("""
-    <div class="section-header">
-        <span class="section-num">3</span>
-        FUZZIFIKASI – Fungsi Keanggotaan
+    <div class="page-title">
+        Fuzzifikasi - Fungsi Keanggotaan
     </div>
     """, unsafe_allow_html=True)
 
@@ -966,13 +1108,30 @@ elif menu == "Fuzzifikasi":
     plt.close()
 
     st.markdown("""
-    <div class="info-box" style='text-align:center;font-size:.82rem;'>
-        <b>Keterangan:</b> Segitiga (trimf) dan Trapesium (trapmf) digunakan sebagai fungsi keanggotaan.<br>
-        <span style='color:#ef4444;font-weight:600;'>Rendah/Murah</span> = Trapesium kiri &nbsp;|&nbsp;
-        <span style='color:#f59e0b;font-weight:600;'>Sedang</span> = Segitiga tengah &nbsp;|&nbsp;
-        <span style='color:#10b981;font-weight:600;'>Tinggi/Mahal</span> = Trapesium kanan
-    </div>
-    """, unsafe_allow_html=True)
+<div class='fuzzy-note'>
+
+<div class='fuzzy-note-title'>
+Keterangan Fungsi Keanggotaan
+</div>
+
+<div class='fuzzy-note-text'>
+Segitiga (trimf) dan Trapesium (trapmf) digunakan sebagai fungsi keanggotaan.
+</div>
+
+<div class='fuzzy-note-tags'>
+<span style='color:#E53935;'>Rendah / Murah</span>
+= Trapesium kiri
+
+<span style='color:#D4A017;'>Sedang</span>
+= Segitiga tengah
+
+<span style='color:#00A86B;'>Tinggi / Mahal</span>
+= Trapesium kanan
+                
+</div>
+
+</div>
+""", unsafe_allow_html=True)
 
 # ────────────────────────────────────────────────────── #
 #                   PAGE 4 – RULE BASE                   #
