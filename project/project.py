@@ -3,10 +3,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import base64
 
-# ─────────────────────────────────────────────
-#  PAGE CONFIG
-# ─────────────────────────────────────────────
+def load_svg(filename):
+    with open(filename, "r", encoding="utf-8") as f:
+        return f.read()
+
+#----------------------------#
+#        PAGE CONFIG         #
+#----------------------------#
 st.set_page_config(
     page_title="SPK Fuzzy Mamdani – Wisata Kerajinan",
     page_icon="🏺",
@@ -14,202 +19,232 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ─────────────────────────────────────────────
-#  GLOBAL CSS
-# ─────────────────────────────────────────────
+def get_base64(bin_file):
+    with open(bin_file, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+bg_img = get_base64("dashb-utama.jpg")
+
+#----------------------------#
+#         GLOBAL CSS         #
+#----------------------------#
 st.markdown("""
 <style>
-/* ====== GLOBAL ====== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
+/* GLOBAL */
 
-/* dark gradient background */
-.stApp {
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #0f172a 100%);
-    color: #e2e8f0;
-}
+@import url('https://fonts.googleapis.com/css2?family=Marcellus+SC&family=Poppins:wght@300;400;500;600;700;800&display=swap');
 
-/* ===== SIDEBAR MENU BUTTON ===== */
-[data-testid="stSidebar"] .stButton > button {
-    background: rgba(99,102,241,0.12) !important;
-    border: 1px solid rgba(129,140,248,0.2) !important;
-    color: #e2e8f0 !important;
-
-    text-align: left !important;
-
-    padding: 12px 14px !important;
-    margin-bottom: 8px !important;
-
-    border-radius: 12px !important;
-
-    font-weight: 600 !important;
-    font-size: 0.95rem !important;
-
-    transition: all 0.2s ease !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: linear-gradient(
-        135deg,
-        rgba(99,102,241,0.5),
-        rgba(139,92,246,0.5)
-    ) !important;
-
-    border: 1px solid #818cf8 !important;
-
-    transform: translateX(3px);
+    html, body {
+    font-family:'Poppins', sans-serif;
 }
             
-/* ====== CARDS ====== */
-.card {
-    background: rgba(30,27,75,0.8);
-    border: 1px solid rgba(99,102,241,0.4);
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 16px;
-    backdrop-filter: blur(10px);
-    transition: transform .2s, box-shadow .2s;
+.dash-title,
+.hero-card h2,
+.sidebar-logo{
+    font-family:'Marcellus SC', serif !important;
 }
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(99,102,241,0.3);
-}
-
-.card-metric {
-    background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(139,92,246,0.2) 100%);
-    border: 1px solid rgba(99,102,241,0.5);
-    border-radius: 12px;
-    padding: 16px;
-    text-align: center;
-}
-.metric-value {
-    font-size: 2rem; font-weight: 800;
-    background: linear-gradient(135deg, #818cf8, #c084fc);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.metric-label { font-size: .75rem; color: #a5b4fc; font-weight: 500; letter-spacing:.05em; text-transform:uppercase; }
-
-/* ====== SECTION HEADER ====== */
-.section-header {
-    display: flex; align-items: center; gap: 10px;
-    padding: 12px 20px; margin-bottom: 20px;
-    background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.3));
-    border-left: 4px solid #818cf8; border-radius: 8px;
-    font-size: 1.1rem; font-weight: 700; color: #e2e8f0;
-}
-.section-num {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white; width: 28px; height: 28px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: .85rem; font-weight: 800; flex-shrink: 0;
-}
-
-/* ====== BADGES ====== */
-.badge-tinggi  { background:#059669; color:#fff; padding:3px 10px; border-radius:20px; font-size:.78rem; font-weight:600; }
-.badge-sedang  { background:#d97706; color:#fff; padding:3px 10px; border-radius:20px; font-size:.78rem; font-weight:600; }
-.badge-rendah  { background:#dc2626; color:#fff; padding:3px 10px; border-radius:20px; font-size:.78rem; font-weight:600; }
-
-/* ====== TABLES ====== */
-.stDataFrame { border-radius: 12px; overflow: hidden; }
-.dataframe    { background: transparent !important; }
-thead tr th   { background: rgba(99,102,241,0.3) !important; color:#e2e8f0 !important; }
-tbody tr:hover { background: rgba(99,102,241,0.1) !important; }
-
-/* ====== BUTTONS ====== */
-.stButton > button {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
-    color: white !important; border: none !important;
-    border-radius: 10px !important; font-weight: 700 !important;
-    padding: 10px 24px !important; transition: all .2s !important;
-}
-.stButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 20px rgba(99,102,241,0.5) !important;
-}
-
-/* ====== SLIDERS ====== */
-.stSlider [data-baseweb="slider"] { color: #818cf8; }
-
-/* ====== SELECT ====== */
-.stSelectbox select, .stSelectbox > div > div {
-    background: rgba(30,27,75,0.8) !important;
-    color: #e2e8f0 !important;
-    border: 1px solid rgba(99,102,241,0.4) !important;
-    border-radius: 8px !important;
-}
-
-/* sidebar logo */
-.sidebar-logo {
-    text-align: center; padding: 20px 10px 10px;
-}
-.sidebar-logo .logo-icon {
-    font-size: 3rem; margin-bottom: 6px;
-}
-.sidebar-logo .logo-title {
-    font-size: 1.3rem; font-weight: 800;
-    background: linear-gradient(135deg, #818cf8, #c084fc);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.sidebar-logo .logo-sub {
-    font-size: .72rem; color: #a5b4fc;
-}
-
-/* info box */
-.info-box {
-    background: rgba(99,102,241,0.15);
-    border: 1px solid rgba(99,102,241,0.4);
-    border-radius: 10px; padding: 14px; margin-bottom:12px;
-}
-
-/* result box */
-.result-box {
-    background: linear-gradient(135deg, rgba(5,150,105,0.2), rgba(16,185,129,0.2));
-    border: 2px solid #059669; border-radius: 16px;
-    padding: 28px; text-align: center; margin: 16px 0;
-}
-.result-score {
-    font-size: 3.5rem; font-weight: 900;
-    background: linear-gradient(135deg, #34d399, #6ee7b7);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.result-kategori { font-size: 1.3rem; font-weight: 700; color: #34d399; }
-
-.result-box-sedang {
-    background: linear-gradient(135deg, rgba(217,119,6,0.2), rgba(245,158,11,0.2));
-    border: 2px solid #d97706; border-radius: 16px;
-    padding: 28px; text-align: center; margin: 16px 0;
-}
-.result-score-sedang {
-    font-size: 3.5rem; font-weight: 900;
-    background: linear-gradient(135deg, #fbbf24, #fde68a);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-
-.result-box-rendah {
-    background: linear-gradient(135deg, rgba(220,38,38,0.2), rgba(239,68,68,0.2));
-    border: 2px solid #dc2626; border-radius: 16px;
-    padding: 28px; text-align: center; margin: 16px 0;
-}
-.result-score-rendah {
-    font-size: 3.5rem; font-weight: 900;
-    background: linear-gradient(135deg, #f87171, #fca5a5);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-
-/* button csv */  
-.stDownloadButton > button {
-    height: 55px !important;
+.hero-card,
+.total-card {
     width: 100%;
-    border-radius: 10px !important;
+    box-sizing: border-box;
+}
+            
+/* DASHBOARD UTAMA - Background */
+.stApp {
+            
+    background-image:
+        linear-gradient(
+            rgba(6,15,8,0.48),
+            rgba(6,15,8,0.58)
+        ),
+
+        url("data:image/jpg;base64,%s");
+
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+
+    color: #f0fdf4;
+}
+
+/* SIDEBAR */
+.sidebar-top{
+    padding-top:30px;
+    padding-bottom:24px;
+    text-align:center;
+}
+
+.sidebar-logo{
+    font-family:'Marcellus SC', serif;
+    color:#F3E8CC;
+    font-size:2.8rem;
+    line-height:1;
+    letter-spacing:1px;
+    margin-bottom:10px;
+}
+
+.sidebar-sub{
+    font-family:'Poppins', sans-serif;
+    font-style:italic;
+    font-size:0.92rem;
+    font-weight:300;
+    color:#F3E8CC;
+    opacity:.92;
+}
+            
+[data-testid="stSidebar"] {
+    background: rgba(10,20,12,0.78) !important;
+    backdrop-filter: blur(18px);
+    border-right: 1px solid rgba(134,239,172,0.08);
+}
+
+/* SIDEBAR BUTTON */
+[data-testid="stSidebar"] .stButton > button {
+    background: rgba(255,255,255,0.18) !important;
+    color: #ffc926 !important;
+    border-radius: 18px !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    height: 64px;
+    width: 92%;
+    margin: 0 auto 14px auto;
+    display:block;
+    font-size: 1rem !important;
+    font-family:'Poppins',sans-serif !important;
+    font-weight:600 !important;
+    transition: all .25s ease;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(255,255,255,0.28) !important;
+    color: #ffc926 !important;
+    transform: scale(1.02);
+    box-shadow:
+        0 0 18px rgba(255,202,38,0.15);
+}
+
+[data-testid="stSidebar"] .stButton > button:focus {
+    border: 2px solid #d52518 !important;
+    box-shadow:
+        0 0 0 3px rgba(213,37,24,0.2);
+}
+            
+/* CARD */
+.card {
+    background: rgba(17,25,20,0.72);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(134,239,172,0.10);
+    border-radius: 20px;
+    padding: 24px;
+    transition: all .25s ease;
+    box-shadow:
+        0 8px 24px rgba(0,0,0,0.22);
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    border: 1px solid rgba(134,239,172,0.35);
+    box-shadow:
+        0 10px 28px rgba(34,197,94,0.18);
+}
+            
+.card-metric {
+    background: rgba(243,232,204,0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.22);
+    padding: 20px;
+    transition: all .28s ease;
+    box-shadow:
+        0 8px 24px rgba(0,0,0,0.08);
+}
+
+.card-metric:hover {
+    transform: translateY(-5px);
+    box-shadow:
+        0 0 18px rgba(255,202,38,0.18),
+        0 15px 30px rgba(0,0,0,0.14);
+}
+
+/* BUTTON */
+.stButton > button {
+    background: linear-gradient(
+        135deg, #22c55e, #16a34a) !important;
+
+    color: white !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    border: none !important;
+    box-shadow:
+        0 6px 18px rgba(34,197,94,0.22);
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 10px 24px rgba(34,197,94,0.35) !important;
+}
+
+/* SECTION */
+.section-header {
+    background: linear-gradient(
+        135deg, rgba(34,197,94,0.18), rgba(134,239,172,0.08));
+
+    border-left: 4px solid #22c55e;
+    color: #f0fdf4;
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-weight: 700;
+}
+
+/* TABLE*/
+thead tr th {
+    background: rgba(34,197,94,0.18) !important;
+    color:#f0fdf4 !important;
+}
+
+/* RESULT */
+.result-box {
+    background: linear-gradient(
+        135deg, rgba(34,197,94,0.15), rgba(134,239,172,0.08));
+
+    border: 2px solid #22c55e;
+    border-radius: 16px;
+}
+
+.result-score {
+    background: linear-gradient(
+        135deg, #22c55e, #86efac);
+
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+            
+.footer-card{
+    margin-top:30px;
+    margin-bottom:10px;
+    background:#F3E8CC;
+    border-radius:18px;
+    padding:14px 20px;
+    text-align:center;
+    color:#1C4D2D;
+    font-family:'Poppins', sans-serif;
+    font-size:0.82rem;
+    font-weight:500;
+    box-shadow:
+        0 8px 20px rgba(0,0,0,0.18);
 }
 </style>
-""", unsafe_allow_html=True)
+""".replace("%s", bg_img), unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-#  LOAD DATA
-# ─────────────────────────────────────────────
+#----------------------------#
+#          LOAD DATA         #
+#----------------------------#
 @st.cache_data
 def load_data():
     df = pd.read_csv("rural_heritage_tourism_industry_chain_dataset.csv")
@@ -220,11 +255,11 @@ def load_data():
 
 df_all, df_hc = load_data()
 
-# ─────────────────────────────────────────────
-#  FUZZY MAMDANI FUNCTIONS
-# ─────────────────────────────────────────────
+#---------------------------------------#
+#        FUZZY MAMDANI FUNCTIONS        #
+#---------------------------------------#
 
-# --- Membership Functions ---
+# MEMBERSHIP FUNCTIONS.
 
 def mf_trapezoid(x, a, b, c, d):
     """Trapezoid membership function"""
@@ -248,7 +283,7 @@ def mf_triangle(x, a, b, c):
     else:
         return (c - x) / (c - b)
 
-# --- C1: Visitor Count (52-799) Benefit ---
+# --- C1: Visitor Count (52-799) -> Benefit ---
 def c1_rendah(x):
     return mf_trapezoid(x, 52, 52, 200, 400)
 
@@ -258,7 +293,7 @@ def c1_sedang(x):
 def c1_tinggi(x):
     return mf_trapezoid(x, 500, 650, 799, 799)
 
-# --- C2: Ticket Price (10-99) Cost ---
+# --- C2: Ticket Price (10-99) -> Cost ---
 def c2_murah(x):
     return mf_trapezoid(x, 10, 10, 30, 55)
 
@@ -268,7 +303,7 @@ def c2_sedang(x):
 def c2_mahal(x):
     return mf_trapezoid(x, 60, 80, 99, 99)
 
-# --- C3: Tourist Satisfaction (0-5) Benefit ---
+# --- C3: Tourist Satisfaction (0-5) -> Benefit ---
 def c3_rendah(x):
     return mf_trapezoid(x, 0, 0, 2.0, 3.25)
 
@@ -278,7 +313,7 @@ def c3_sedang(x):
 def c3_tinggi(x):
     return mf_trapezoid(x, 3.75, 4.5, 5.0, 5.0)
 
-# --- C4: Revenue Generated (5000-100000) Benefit ---
+# --- C4: Revenue Generated (5000-100000) -> Benefit ---
 def c4_rendah(x):
     return mf_trapezoid(x, 5000, 5000, 30000, 55000)
 
@@ -288,7 +323,7 @@ def c4_sedang(x):
 def c4_tinggi(x):
     return mf_trapezoid(x, 60000, 80000, 100000, 100000)
 
-# --- C5: Operational Cost (2000-50000) Cost ---
+# --- C5: Operational Cost (2000-50000) -> Cost ---
 def c5_rendah(x):
     return mf_trapezoid(x, 2000, 2000, 15000, 27500)
 
@@ -308,7 +343,9 @@ def out_sedang(z):
 def out_tinggi(z):
     return mf_trapezoid(z, 50, 75, 100, 100)
 
-# ─── RULE BASE (15 rules) ───────────────────
+#-------------------------------------#
+#        RULE BASE (15 rules)         #
+#-------------------------------------#
 RULES = [
     # No, Antecedent dict, Consequent
     (1,  {"c1":"tinggi", "c3":"tinggi"},              "tinggi"),
@@ -419,9 +456,9 @@ def fuzzy_mamdani(c1, c2, c3, c4, c5):
     kat  = get_kategori(score)
     return score, kat, fuzz, inf, agg
 
-# ─────────────────────────────────────────────
-#  COMPUTE SCORES FOR ALL ROWS
-# ─────────────────────────────────────────────
+#----------------------------------------#
+#        COMPUTE SCORES ALL ROWS         #
+#----------------------------------------#
 @st.cache_data
 def compute_all_scores(df):
     scores = []
@@ -442,159 +479,366 @@ df_result = pd.concat([df_hc.reset_index(drop=True), score_df], axis=1)
 df_ranked = df_result.sort_values("Skor_Kinerja", ascending=False).reset_index(drop=True)
 df_ranked.insert(0, "Rank", range(1, len(df_ranked) + 1))
 
-# ─────────────────────────────────────────────
-#  SIDEBAR
-# ─────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-logo">
-        <div class="logo-icon">🏺</div>
-        <div class="logo-title">SPK Mamdani</div>
-        <div class="logo-sub">Fuzzy Decision Support System</div>
+#----------------------------#
+#          SIDEBAR           #
+#----------------------------#
+st.sidebar.markdown(
+    """
+    <div class="sidebar-top">
+        <div class="sidebar-logo">
+            SPK<br>MAMDANI
+        </div>
+        <div class="sidebar-sub">
+            Fuzzy Decision Support System
+        </div>
     </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
+    """,
+    unsafe_allow_html=True
+)
 
-    # =========================
-    # SIDEBAR MENU CUSTOM
-    # =========================
+    #------------------------------------#
+    #        SIDEBAR MENU CUSTOM         #
+    #------------------------------------#
 
-    if "menu" not in st.session_state:
-        st.session_state.menu = "🏠 Dashboard"
+if "menu" not in st.session_state:
+        st.session_state.menu = "Dashboard"
 
-    menus = [
-        "🏠 Dashboard",
-        "📂 Dataset",
-        "🔶 Fuzzifikasi",
-        "📜 Rule Base",
-        "⚙️ Hitung SPK",
-        "🔍 Proses Fuzzy",
-        "🏆 Hasil & Ranking",
-        "📊 Visualisasi",
-        "👥 Profil Kelompok"
+menus = [
+        "Dashboard",
+        "Dataset",
+        "Fuzzifikasi",
+        "Rule Base",
+        "Hitung SPK",
+        "Proses Fuzzy",
+        "Hasil & Ranking",
+        "Visualisasi",
+        "Profile Tim"
     ]
 
-    for item in menus:
-        if st.sidebar.button(item, use_container_width=True):
-            st.session_state.menu = item
+for item in menus:
+    if st.sidebar.button(item, use_container_width=True):
+        st.session_state.menu = item
 
-    menu = st.session_state.menu
-    st.markdown("---")
-    st.markdown("""
-    <div style='text-align:center;font-size:.7rem;color:#a5b4fc;'>
-    Dataset: Rural Heritage Tourism<br>
-    Metode: Fuzzy Mamdani<br>
-    Filter: Handicraft Center
-    </div>
+menu = st.session_state.menu
+st.markdown("""
     """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 1 – DASHBOARD
-# ═══════════════════════════════════════════════════════
-if menu == "🏠 Dashboard":
+# ────────────────────────────────────────────────────── #
+#                   PAGE 1 – DASHBOARD                   #
+# ────────────────────────────────────────────────────── #
+if menu == "Dashboard":
+
+    def load_svg(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            return f.read()
+
+    svg_db       = load_svg("files-db.svg")
+    svg_visitor  = load_svg("visitor-count.svg")
+    svg_ticket   = load_svg("ticket.svg")
+    svg_rate     = load_svg("rate.svg")
+    svg_revenue  = load_svg("revenue-bag.svg")
+    svg_ops      = load_svg("operational.svg")
+
+
     st.markdown("""
-    <div class="section-header">
-        DASHBOARD
-    </div>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Marcellus&family=Poppins:wght@300;400;500;600;700&display=swap');
+                
+    .dash-title {
+        font-family: 'Marcellus SC', serif;
+        font-size: 3.8rem;
+        font-weight: 400;
+        color:#ffc926;
+        line-height: 1.1;
+        margin-bottom: 10px;
+        margin-top: -20px;
+        text-shadow: none;
+    }
+    .hero-card {
+        background: rgba(243,232,204,0.38);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 28px;
+        padding: 30px;
+        box-shadow:
+            0 8px 32px rgba(0,0,0,0.14);
+        transition: all .3s ease;
+    }
+    .hero-card:hover {
+        transform: translateY(-4px);
+        box-shadow:
+            0 0 22px rgba(255,202,38,0.16),
+            0 18px 40px rgba(0,0,0,0.16);
+    }
+    .hero-card h2 {
+        font-family: 'Marcellus SC', serif;
+        font-size: 1.95rem;
+        font-weight: 400;
+        color:#ffc926;
+        margin-bottom: 10px;
+        line-height: 1.2;
+    }
+    .hero-card p {
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: #19532B;
+        line-height: 1.6;
+        text-align: justify;
+        margin: 0;
+    }
+    .total-card {
+        background: rgba(243,232,204,0.38);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border-radius: 30px;
+        border: 1px solid rgba(255,255,255,0.24);
+        padding: 28px 20px;
+        min-height: 220px;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        align-items:center;
+        text-align:center;
+        box-shadow:
+            0 8px 32px rgba(0,0,0,0.14);
+        transition:all .3s ease;
+    }
+    .total-card:hover {
+        transform: translateY(-4px);
+        box-shadow:
+            0 0 22px rgba(255,202,38,0.16),
+            0 18px 40px rgba(0,0,0,0.16);
+    }
+    .total-card svg {
+        width: 58px;
+        height: 58px;
+        margin-bottom: 10px;
+    }
+    .total-card .total-num {
+        font-family: 'Poppins', sans-serif;
+        font-size: 2.4rem;
+        font-weight: 700;
+        color: #19532B;
+        line-height: 1.1;
+    }
+    .total-card .total-label {
+        font-family: 'Poppins', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #19532B;
+        margin-top: 4px;
+    }
+    .dash-section-title {
+        font-family: 'Poppins', sans-serif;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #ffc926;
+        margin: 28px 0 14px 0;
+    }
+    .dash-section-title-yellow {
+        font-family: 'Poppins', sans-serif;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #FFCA26;
+        margin: 28px 0 14px 0;
+    }
+    .krit-card {
+        background: rgba(243,232,204,0.88);
+        border-radius: 22px;
+        padding: 16px 12px 14px 14px;
+        min-height: 175px;
+        transition: all .28s ease;
+        border:1px solid rgba(255,255,255,0.12);
+    }
+
+    .krit-card:hover{
+        transform:translateY(-5px);
+        box-shadow:
+            0 0 18px rgba(255,202,38,0.18),
+            0 15px 30px rgba(0,0,0,0.14);
+    }
+    .krit-card svg {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 6px;
+    }
+    .krit-card .kc {
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #19532B;
+        margin-bottom: 2px;
+    }
+    .krit-card .kname {
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #19532B;
+        margin: 2px 0 3px 0;
+    }
+    .krit-card .krange {
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.72rem;
+        font-weight: 400;
+        color: #19532B;
+        margin-bottom: 8px;
+    }
+    .badge-benefit {
+        background: #9ABC05;
+        color: #fff;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 600;
+        font-size: 0.78rem;
+        padding: 3px 14px;
+        border-radius: 14px;
+        display: inline-block;
+    }
+    .badge-cost {
+        background: #D52518;
+        color: #fff;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 600;
+        font-size: 0.78rem;
+        padding: 3px 14px;
+        border-radius: 14px;
+        display: inline-block;
+    }
+    .ring-card-dark {
+        background: rgba(25,83,43,0.72);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border:1px solid rgba(255,255,255,0.12);
+        border-radius: 30px;
+        padding: 20px 16px;
+        text-align: center;
+        min-height: 155px;
+        transition:all .28s ease;
+    }
+    .ring-card-dark:hover{
+        transform:translateY(-4px);
+        box-shadow:
+            0 0 18px rgba(255,202,38,0.15);
+    }
+    .ring-card-dark .rnum {
+        font-family: 'Poppins', sans-serif;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #F3E8CC;
+        line-height: 1.1;
+    }
+    .ring-card-dark .rlabel {
+        font-family: 'Poppins', sans-serif;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #F3E8CC;
+        margin-top: 4px;
+        line-height: 1.3;
+    }
+    .ring-card-dark .rsub {
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 400;
+        color: #F3E8CC;
+        margin-top: 6px;
+    }
+    .dash-footer {
+        background: #F3E8CC;
+        color: #19532B;
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 500;
+        text-align: center;
+        padding: 14px 20px;
+        margin-top: 36px;
+        border-radius: 0 0 8px 8px;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
-    # Hero
-    col_h1, col_h2 = st.columns([2, 1])
-    with col_h1:
-        st.markdown("""
-        <div class="card" style='text-align:center;height:180px;'>
-            <div style='
-                color:#818cf8;
-                font-size:2.2rem;
-                font-weight:700;
-                margin:0;
-            '>
-                SISTEM PENDUKUNG KEPUTUSAN
-            </div>
-            <div style='
-                color:#e2e8f0;
-                font-size:1.1rem;
-                line-height:1.3;
-                margin:0;
-            '>
-                Pemilihan Penilaian Kinerja Destinasi Wisata Kerajinan<br>
-                <span style='color:#a5b4fc;'>
-                    (Handicraft Tourism) Menggunakan Metode Fuzzy Mamdani
-                </span>
-            </div>
-            <div style='
-                color:#94a3b8;
-                font-size:.88rem;
-                line-height:1.3;
-                margin:0;
-            '>
-                Sistem membantu menentukan peringkat kinerja destinasi wisata kerajinan (Handicraft Center)<br>
-                berdasarkan 5 kriteria menggunakan metode Fuzzy Mamdani
-                Inference System (FMIS).
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    total_all = len(df_all)
+    total_hc  = len(df_hc)
 
-    with col_h2:
-        total_all = len(df_all)
-        total_hc  = len(df_hc)
+    # ── JUDUL ────────────────────────────────────── #
+    st.markdown("<div class='dash-title'>Dashboard</div>", unsafe_allow_html=True)
 
+    # ── HERO ROW ─────────────────────────────────── #
+    col_hero, col_total = st.columns([3, 1.6])
+
+    with col_hero:
         st.markdown(f"""
-        <div class="card" style='text-align:center;height:180px'>
-            <div style='font-size:2.5rem;'>🗃️</div>
-            <div class='metric-value'>{total_all}</div>
-            <div class='metric-label'>Total Data</div>
+        <div class="hero-card">
+            <h2>Sistem Pendukung Keputusan</h2>
+            <p>
+                Pemilihan Penilaian Kinerja Destinasi Wisata Kerajinan
+                (Handicraft Tourism) Menggunakan Metode Fuzzy Mamdani.
+                Sistem membantu menentukan peringkat kinerja destinasi
+                wisata kerajinan (Handicraft Center) berdasarkan 5 kriteria
+                menggunakan metode Fuzzy Mamdani Inference System (FMIS).
+            </p>
         </div>
         """, unsafe_allow_html=True)
 
-    # Kriteria cards
-    st.markdown("#### Kriteria Penilaian")
-    cols = st.columns(5)
+    with col_total:
+        st.markdown(f"""
+        <div class="total-card">
+            <div style='width:58px;height:58px;margin-bottom:10px;'>{svg_db}</div>
+            <div class="total-num">{total_all}</div>
+            <div class="total-label">Total Data</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── KRITERIA PENILAIAN ───────────────────────── #
+    st.markdown("<div class='dash-section-title'>Kriteria Penilaian</div>", unsafe_allow_html=True)
+
     kriteria = [
-        ("C1", "Visitor Count", "(52 – 799)", "Benefit", "👥", "#6366f1"),
-        ("C2", "Ticket Price",  "(10 – 99)",  "Cost",    "🎟️", "#ef4444"),
-        ("C3", "Tourist Satisfaction", "(0 – 5)", "Benefit", "⭐", "#10b981"),
-        ("C4", "Revenue Generated", "(5.000 – 100.000)", "Benefit", "💰", "#f59e0b"),
-        ("C5", "Operational Cost",  "(2.000 – 50.000)", "Cost",    "⚙️", "#ef4444"),
+        ("C1", "Visitor Count",        "(52-799)",         "Benefit", svg_visitor),
+        ("C2", "Ticket Price",         "(10-99)",          "Cost",    svg_ticket),
+        ("C3", "Tourist Satification", "(0-5)",            "Benefit", svg_rate),
+        ("C4", "Revenue Generated",    "(5.000-100.000)",  "Benefit", svg_revenue),
+        ("C5", "Operational Cost",     "(2.000-50.000)",   "Cost",    svg_ops),
     ]
-    for i, (code, name, rng, btype, icon, color) in enumerate(kriteria):
-        with cols[i]:
-            badge_color = "#059669" if btype == "Benefit" else "#dc2626"
+
+    k_cols = st.columns(5)
+    for i, (code, name, rng, btype, svg_icon) in enumerate(kriteria):
+        badge = "<span class='badge-benefit'>Benefit</span>" if btype == "Benefit" else "<span class='badge-cost'>Cost</span>"
+        with k_cols[i]:
             st.markdown(f"""
-            <div class="card-metric">
-                <div style='font-size:1.8rem;margin-bottom:6px;'>{icon}</div>
-                <div style='font-size:1.1rem;font-weight:800;color:{color};'>{code}</div>
-                <div style='font-size:.82rem;font-weight:600;color:#e2e8f0;margin:4px 0;'>{name}</div>
-                <div style='font-size:.72rem;color:#94a3b8;'>{rng}</div>
-                <div style='margin-top:8px;'>
-                    <span style='background:{badge_color};color:#fff;padding:2px 8px;border-radius:12px;font-size:.72rem;font-weight:700;'>{btype}</span>
-                </div>
+            <div class="krit-card">
+                <div style='width:48px;height:48px;margin-bottom:6px;'>{svg_icon}</div>
+                <div class="kc">{code}</div>
+                <div class="kname">{name}</div>
+                <div class="krange">{rng}</div>
+                {badge}
             </div>
             """, unsafe_allow_html=True)
 
-    # Bottom stats
-    st.markdown("#### Ringkasan Sistem")
-    bcols = st.columns(4)
-    stats = [
-        ("Total Data", str(total_all), "(dataset)"),
-        ("Data Handicraft Center", str(total_hc), "(setelah filter)"),
-        ("Jumlah Kriteria", "5", "kriteria"),
-        ("Metode", "Fuzzy Mamdani", "Inference System"),
+    # ── RINGKASAN SISTEM ─────────────────────────── #
+    st.markdown("<div class='dash-section-title-yellow'>Ringkasan Sistem</div>", unsafe_allow_html=True)
+
+    r_cols = st.columns(4)
+    ring_data = [
+        (str(total_all), "Total Data",              "(Dataset)"),
+        (str(total_hc),  "Data Handicraft<br>Center", "(Setelah di Filter)"),
+        ("5",            "Jumlah Kriteria",          "(Kriteria)"),
+        ("Fuzzy Mamdani","Metode",                   "(Inference System)"),
     ]
-    for i, (label, val, sub) in enumerate(stats):
-        with bcols[i]:
+
+    for i, (val, label, sub) in enumerate(ring_data):
+        with r_cols[i]:
             st.markdown(f"""
-            <div class="card-metric">
-                <div class='metric-value' style='font-size:1.8rem; line-height:1.5;'>{val}</div>
-                <div style='font-size:.75rem;font-weight:600;color:#a5b4fc;'>{label}</div>
-                <div style='font-size:.65rem;color:#94a3b8;margin-top:4px;'>{sub}</div>
+            <div class="ring-card-dark">
+                <div class="rnum">{val}</div>
+                <div class="rlabel">{label}</div>
+                <div class="rsub">{sub}</div>
             </div>
             """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 2 – DATASET
-# ═══════════════════════════════════════════════════════
-elif menu == "📂 Dataset":
+# ────────────────────────────────────────────────────── #
+#                    PAGE 2 – DATASET                    #
+# ────────────────────────────────────────────────────── #
+if menu == "Dataset":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">2</span>
@@ -636,10 +880,10 @@ elif menu == "📂 Dataset":
 
     st.dataframe(show_df, use_container_width=True, height=450)
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 3 – FUZZIFIKASI
-# ═══════════════════════════════════════════════════════
-elif menu == "🔶 Fuzzifikasi":
+# ────────────────────────────────────────────────────── #
+#                  PAGE 3 – FUZZIFIKASI                  #
+# ────────────────────────────────────────────────────── #
+elif menu == "Fuzzifikasi":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">3</span>
@@ -730,10 +974,10 @@ elif menu == "🔶 Fuzzifikasi":
     </div>
     """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 4 – RULE BASE
-# ═══════════════════════════════════════════════════════
-elif menu == "📜 Rule Base":
+# ────────────────────────────────────────────────────── #
+#                   PAGE 4 – RULE BASE                   #
+# ────────────────────────────────────────────────────── #
+elif menu == "Rule Base":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">4</span>
@@ -776,10 +1020,10 @@ elif menu == "📜 Rule Base":
             </div>
             """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 5 – HITUNG SPK
-# ═══════════════════════════════════════════════════════
-elif menu == "⚙️ Hitung SPK":
+# ────────────────────────────────────────────────────── #
+#                  PAGE 5 – HITUNG SPK                   #
+# ────────────────────────────────────────────────────── #
+elif menu == "Hitung SPK":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">5</span>
@@ -866,10 +1110,10 @@ elif menu == "⚙️ Hitung SPK":
         st.success(f"✅ Perhitungan selesai! Skor Kinerja: **{score:.2f}** – Kategori: **{kat}**")
         st.info("💡 Lihat detail proses di menu **🔍 Proses Fuzzy**")
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 6 – PROSES FUZZY
-# ═══════════════════════════════════════════════════════
-elif menu == "🔍 Proses Fuzzy":
+# ───────────────────────────────────────────────────── #
+#                 PAGE 6 – PROSES FUZZY                 #
+# ───────────────────────────────────────────────────── #
+elif menu == "Proses Fuzzy":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">6</span>
@@ -995,10 +1239,10 @@ elif menu == "🔍 Proses Fuzzy":
         </div>
         """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 7 – HASIL & RANKING
-# ═══════════════════════════════════════════════════════
-elif menu == "🏆 Hasil & Ranking":
+# ────────────────────────────────────────────────────── #
+#               PAGE 7 – HASIL dan RANKING               #
+# ────────────────────────────────────────────────────── #
+elif menu == "Hasil & Ranking":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">7</span>
@@ -1064,10 +1308,10 @@ elif menu == "🏆 Hasil & Ranking":
                 </div>
                 """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 8 – VISUALISASI
-# ═══════════════════════════════════════════════════════
-elif menu == "📊 Visualisasi":
+# ────────────────────────────────────────────────────── #
+#                  PAGE 8 – VISUALISASI                  #
+# ────────────────────────────────────────────────────── #
+elif menu == "Visualisasi":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">8</span>
@@ -1185,14 +1429,14 @@ elif menu == "📊 Visualisasi":
         st.pyplot(fig5)
         plt.close()
 
-# ═══════════════════════════════════════════════════════
-#  PAGE 9 – PROFIL KELOMPOK
-# ═══════════════════════════════════════════════════════
-elif menu == "👥 Profil Kelompok":
+# ────────────────────────────────────────────────────── #
+#                  PAGE 9 – PROFILE TIM                  #
+# ────────────────────────────────────────────────────── #
+elif menu == "Profile Tim":
     st.markdown("""
     <div class="section-header">
         <span class="section-num">9</span>
-        PROFIL KELOMPOK
+        PROFILE TIM
     </div>
     """, unsafe_allow_html=True)
 
@@ -1266,13 +1510,10 @@ elif menu == "👥 Profil Kelompok":
         </div>
         """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-#  FOOTER
-# ─────────────────────────────────────────────
 st.markdown("""
-<div style='text-align:center;padding:24px 0 10px;font-size:.75rem;color:#475569;
-            border-top:1px solid rgba(99,102,241,0.2);margin-top:30px;'>
-    Sistem Pendukung Keputusan Kinerja Destinasi Wisata Kerajinan (Handicraft Tourism)
-    Menggunakan Metode Fuzzy Mamdani &nbsp;|&nbsp; © 2025 IvaaAlsa · SCPK 2025/2026
+<div class="footer-card">
+    SPK Kinerja Destinasi Wisata Kerajinan (Handicraft Tourism)
+    Metode Fuzzy Mamdani |
+    © Ivaa & Alsa, All I Wanna Do! Project Gacor! 2026.
 </div>
 """, unsafe_allow_html=True)
