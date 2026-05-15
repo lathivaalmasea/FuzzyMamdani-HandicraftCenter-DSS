@@ -7,13 +7,16 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import base64
 
+# ──────────────────────────────────────────────── #
+#   HELPER: muat file SVG dari direktori lokal     #
+# ──────────────────────────────────────────────── #
 def load_svg(filename):
     with open(filename, "r", encoding="utf-8") as f:
         return f.read()
 
-#----------------------------#
-#        PAGE CONFIG         #
-#----------------------------#
+# ──────────────────────────────────────────────── #
+#             KONFIGURASI HALAMAN                  #
+# ──────────────────────────────────────────────── #
 st.set_page_config(
     page_title="SPK Fuzzy Mamdani – Wisata Kerajinan",
     page_icon="🏺",
@@ -28,9 +31,9 @@ def get_base64(bin_file):
 
 bg_img = get_base64("dashb-utama.jpg")
 
-#----------------------------#
-#         GLOBAL CSS         #
-#----------------------------#
+# ──────────────────────────────────────────────── #
+#                  GLOBAL CSS                      #
+# ──────────────────────────────────────────────── #
 st.markdown("""
 <style>
 
@@ -357,12 +360,16 @@ thead tr th {
 </style>
 """.replace("%s", bg_img), unsafe_allow_html=True)
 
-#----------------------------#
-#          LOAD DATA         #
-#----------------------------#
+
+# ──────────────────────────────────────────────────────── #
+#   LANGKAH 1 – LOAD DATASET                               #
+#   Dataset: Rural Heritage Tourism Industry Chain         #
+#   Filter: Heritage_Type == "Handicraft Center"           #
+# ──────────────────────────────────────────────────────── #
 @st.cache_data
 def load_data():
     df = pd.read_csv("rural_heritage_tourism_industry_chain_dataset.csv")
+    # Filter hanya destinasi tipe Handicraft Center
     hc = df[df["Heritage_Type"] == "Handicraft Center"].copy()
     hc = hc.reset_index(drop=True)
     hc.index = hc.index + 1
@@ -370,102 +377,128 @@ def load_data():
 
 df_all, df_hc = load_data()
 
-#---------------------------------------#
-#    SCIKIT-FUZZY VARIABLE DEFINITIONS  #
-#   (sesuai Modul IX: ctrl.Antecedent,  #
-#    ctrl.Consequent, fuzz.trimf,       #
-#    fuzz.trapmf, ctrl.Rule,            #
-#    ctrl.ControlSystem,                #
-#    ctrl.ControlSystemSimulation)      #
-#---------------------------------------#
 
+# ──────────────────────────────────────────────────────── #
+#   LANGKAH 2 – DEFINISI VARIABEL FUZZY (Modul IX)        #
+#                                                          #
+#   Antecedent (Input):                                    #
+#     - jumlah_pengunjung  → C1 Visitor Count   (Benefit) #
+#     - harga_tiket        → C2 Ticket Price    (Cost)    #
+#     - kepuasan_wisatawan → C3 Tourist Sat.    (Benefit) #
+#     - pendapatan         → C4 Revenue         (Benefit) #
+#     - biaya_operasional  → C5 Operational Cost(Cost)    #
+#                                                          #
+#   Consequent (Output):                                   #
+#     - kinerja → Skor kinerja destinasi [0, 100]         #
+#                                                          #
+#   Catatan: np.arange bersifat interval setengah terbuka #
+#   sehingga batas atas dilebihkan (sesuai Modul IX)      #
+# ──────────────────────────────────────────────────────── #
 @st.cache_resource
-def build_fuzzy_system():
-    """
-    Membangun sistem inferensi Fuzzy Mamdani menggunakan library scikit-fuzzy
-    sesuai panduan Modul IX Praktikum Kecerdasan Buatan UPN Veteran Yogyakarta.
+def bangun_sistem_fuzzy():
 
-    Variabel input (ctrl.Antecedent) dan output (ctrl.Consequent) didefinisikan
-    dengan universe sesuai range dataset Handicraft Center.
-    Fungsi keanggotaan menggunakan fuzz.trimf (segitiga) dan fuzz.trapmf (trapesium).
-    Aturan fuzzy IF-THEN dibangun menggunakan ctrl.Rule dengan operator & (AND/MIN).
-    """
+    # Definisikan variabel fuzzy input (Antecedent)
+    jumlah_pengunjung  = ctrl.Antecedent(np.arange(52,  800, 1),      'visitor_count')
+    harga_tiket        = ctrl.Antecedent(np.arange(10,  100, 1),      'ticket_price')
+    kepuasan_wisatawan = ctrl.Antecedent(np.arange(0.0, 5.1, 0.1),   'tourist_sat')
+    pendapatan         = ctrl.Antecedent(np.arange(5000, 100001, 100),'revenue')
+    biaya_operasional  = ctrl.Antecedent(np.arange(2000, 50001, 100), 'op_cost')
 
-    # ── Definisi Antecedent (Input) ──────────────────────────────────────────
-    # np.arange: interval setengah terbuka → batas atas dilebihkan 1 (sesuai Modul IX)
-    visitor_count   = ctrl.Antecedent(np.arange(52,  800, 1), 'visitor_count')
-    ticket_price    = ctrl.Antecedent(np.arange(10,  100, 1), 'ticket_price')
-    tourist_sat     = ctrl.Antecedent(np.arange(0.0, 5.1, 0.1), 'tourist_sat')
-    revenue         = ctrl.Antecedent(np.arange(5000, 100001, 100), 'revenue')
-    op_cost         = ctrl.Antecedent(np.arange(2000, 50001, 100), 'op_cost')
-
-    # ── Definisi Consequent (Output) ─────────────────────────────────────────
+    # Definisikan variabel fuzzy output (Consequent)
+    # Metode defuzzifikasi: centroid (sesuai Modul IX)
     kinerja = ctrl.Consequent(np.arange(0, 101, 1), 'kinerja', defuzzify_method='centroid')
 
-    # ── Fungsi Keanggotaan – Visitor Count (C1: Benefit) ─────────────────────
-    visitor_count['rendah'] = fuzz.trapmf(visitor_count.universe, [52,  52,  200, 400])
-    visitor_count['sedang'] = fuzz.trimf( visitor_count.universe, [200, 425, 650])
-    visitor_count['tinggi'] = fuzz.trapmf(visitor_count.universe, [500, 650, 799, 799])
+    # ── Fungsi Keanggotaan C1: Jumlah Pengunjung ─────────────────────────────
+    # Rendah  → trapesium kiri  (trapmf)
+    # Sedang  → segitiga tengah (trimf)
+    # Tinggi  → trapesium kanan (trapmf)
+    jumlah_pengunjung['rendah'] = fuzz.trapmf(jumlah_pengunjung.universe, [52,  52,  200, 400])
+    jumlah_pengunjung['sedang'] = fuzz.trimf( jumlah_pengunjung.universe, [200, 425, 650])
+    jumlah_pengunjung['tinggi'] = fuzz.trapmf(jumlah_pengunjung.universe, [500, 650, 799, 799])
 
-    # ── Fungsi Keanggotaan – Ticket Price (C2: Cost) ─────────────────────────
-    ticket_price['murah']  = fuzz.trapmf(ticket_price.universe, [10, 10, 30, 55])
-    ticket_price['sedang'] = fuzz.trimf( ticket_price.universe, [30, 55, 80])
-    ticket_price['mahal']  = fuzz.trapmf(ticket_price.universe, [60, 80, 99, 99])
+    # ── Fungsi Keanggotaan C2: Harga Tiket ───────────────────────────────────
+    harga_tiket['murah']  = fuzz.trapmf(harga_tiket.universe, [10, 10, 30, 55])
+    harga_tiket['sedang'] = fuzz.trimf( harga_tiket.universe, [30, 55, 80])
+    harga_tiket['mahal']  = fuzz.trapmf(harga_tiket.universe, [60, 80, 99, 99])
 
-    # ── Fungsi Keanggotaan – Tourist Satisfaction (C3: Benefit) ──────────────
-    tourist_sat['rendah'] = fuzz.trapmf(tourist_sat.universe, [0.0, 0.0, 2.0, 3.25])
-    tourist_sat['sedang'] = fuzz.trimf( tourist_sat.universe, [2.5, 3.5, 4.5])
-    tourist_sat['tinggi'] = fuzz.trapmf(tourist_sat.universe, [3.75, 4.5, 5.0, 5.0])
+    # ── Fungsi Keanggotaan C3: Kepuasan Wisatawan ────────────────────────────
+    kepuasan_wisatawan['rendah'] = fuzz.trapmf(kepuasan_wisatawan.universe, [0.0, 0.0, 2.0, 3.25])
+    kepuasan_wisatawan['sedang'] = fuzz.trimf( kepuasan_wisatawan.universe, [2.5, 3.5, 4.5])
+    kepuasan_wisatawan['tinggi'] = fuzz.trapmf(kepuasan_wisatawan.universe, [3.75, 4.5, 5.0, 5.0])
 
-    # ── Fungsi Keanggotaan – Revenue Generated (C4: Benefit) ─────────────────
-    revenue['rendah'] = fuzz.trapmf(revenue.universe, [5000,  5000,  30000, 55000])
-    revenue['sedang'] = fuzz.trimf( revenue.universe, [30000, 55000, 80000])
-    revenue['tinggi'] = fuzz.trapmf(revenue.universe, [60000, 80000, 100000, 100000])
+    # ── Fungsi Keanggotaan C4: Pendapatan ────────────────────────────────────
+    pendapatan['rendah'] = fuzz.trapmf(pendapatan.universe, [5000,  5000,  30000, 55000])
+    pendapatan['sedang'] = fuzz.trimf( pendapatan.universe, [30000, 55000, 80000])
+    pendapatan['tinggi'] = fuzz.trapmf(pendapatan.universe, [60000, 80000, 100000, 100000])
 
-    # ── Fungsi Keanggotaan – Operational Cost (C5: Cost) ─────────────────────
-    op_cost['rendah'] = fuzz.trapmf(op_cost.universe, [2000,  2000,  15000, 27000])
-    op_cost['sedang'] = fuzz.trimf( op_cost.universe, [15000, 27500, 40000])
-    op_cost['tinggi'] = fuzz.trapmf(op_cost.universe, [30000, 40000, 50000, 50000])
+    # ── Fungsi Keanggotaan C5: Biaya Operasional ─────────────────────────────
+    biaya_operasional['rendah'] = fuzz.trapmf(biaya_operasional.universe, [2000,  2000,  15000, 27000])
+    biaya_operasional['sedang'] = fuzz.trimf( biaya_operasional.universe, [15000, 27500, 40000])
+    biaya_operasional['tinggi'] = fuzz.trapmf(biaya_operasional.universe, [30000, 40000, 50000, 50000])
 
-    # ── Fungsi Keanggotaan – Output Kinerja ──────────────────────────────────
+    # ── Fungsi Keanggotaan Output: Kinerja ───────────────────────────────────
     kinerja['rendah'] = fuzz.trapmf(kinerja.universe, [0,  0,  25, 50])
     kinerja['sedang'] = fuzz.trimf( kinerja.universe, [25, 50, 75])
     kinerja['tinggi'] = fuzz.trapmf(kinerja.universe, [50, 75, 100, 100])
 
-    # ── Rule Base (15 aturan IF-THEN) ────────────────────────────────────────
-    # Operator AND (&) = MIN, sesuai Modul IX penalaran min-max Mamdani
-    rules = [
-        ctrl.Rule(visitor_count['tinggi'] & tourist_sat['tinggi'],  kinerja['tinggi']),   # R1
-        ctrl.Rule(visitor_count['sedang'] & tourist_sat['tinggi'],  kinerja['tinggi']),   # R2
-        ctrl.Rule(visitor_count['rendah'],                           kinerja['rendah']),   # R3
-        ctrl.Rule(ticket_price['murah']   & tourist_sat['tinggi'],  kinerja['tinggi']),   # R4
-        ctrl.Rule(ticket_price['mahal']   & tourist_sat['rendah'],  kinerja['rendah']),   # R5
-        ctrl.Rule(ticket_price['sedang']  & tourist_sat['sedang'],  kinerja['sedang']),   # R6
-        ctrl.Rule(revenue['tinggi']       & op_cost['rendah'],       kinerja['tinggi']),   # R7
-        ctrl.Rule(revenue['tinggi']       & op_cost['tinggi'],       kinerja['sedang']),   # R8
-        ctrl.Rule(revenue['rendah'],                                 kinerja['rendah']),   # R9
-        ctrl.Rule(op_cost['tinggi'],                                 kinerja['rendah']),   # R10
-        ctrl.Rule(op_cost['rendah']       & tourist_sat['tinggi'],  kinerja['tinggi']),   # R11
-        ctrl.Rule(tourist_sat['rendah'],                             kinerja['rendah']),   # R12
-        ctrl.Rule(tourist_sat['sedang'],                             kinerja['sedang']),   # R13
-        ctrl.Rule(visitor_count['tinggi'] & ticket_price['mahal'],  kinerja['sedang']),   # R14
-        ctrl.Rule(visitor_count['sedang'] & ticket_price['sedang'], kinerja['sedang']),   # R15
+    # ──────────────────────────────────────────────────────────────────────── #
+    #   LANGKAH 3 – DASAR ATURAN / RULE BASE (IF-THEN)                        #
+    #   Operator "&" = AND = MIN  (penalaran min-max Mamdani, Modul IX)       #
+    #   Operator "|" = OR  = MAX                                               #
+    #   Total: 15 aturan fuzzy                                                 #
+    # ──────────────────────────────────────────────────────────────────────── #
+    aturan = [
+        # R1  : IF Pengunjung Tinggi AND Kepuasan Tinggi  THEN Kinerja Tinggi
+        ctrl.Rule(jumlah_pengunjung['tinggi'] & kepuasan_wisatawan['tinggi'],  kinerja['tinggi']),
+        # R2  : IF Pengunjung Sedang AND Kepuasan Tinggi  THEN Kinerja Tinggi
+        ctrl.Rule(jumlah_pengunjung['sedang'] & kepuasan_wisatawan['tinggi'],  kinerja['tinggi']),
+        # R3  : IF Pengunjung Rendah                      THEN Kinerja Rendah
+        ctrl.Rule(jumlah_pengunjung['rendah'],                                  kinerja['rendah']),
+        # R4  : IF Harga Murah AND Kepuasan Tinggi        THEN Kinerja Tinggi
+        ctrl.Rule(harga_tiket['murah']   & kepuasan_wisatawan['tinggi'],        kinerja['tinggi']),
+        # R5  : IF Harga Mahal AND Kepuasan Rendah        THEN Kinerja Rendah
+        ctrl.Rule(harga_tiket['mahal']   & kepuasan_wisatawan['rendah'],        kinerja['rendah']),
+        # R6  : IF Harga Sedang AND Kepuasan Sedang       THEN Kinerja Sedang
+        ctrl.Rule(harga_tiket['sedang']  & kepuasan_wisatawan['sedang'],        kinerja['sedang']),
+        # R7  : IF Pendapatan Tinggi AND Biaya Rendah     THEN Kinerja Tinggi
+        ctrl.Rule(pendapatan['tinggi']   & biaya_operasional['rendah'],         kinerja['tinggi']),
+        # R8  : IF Pendapatan Tinggi AND Biaya Tinggi     THEN Kinerja Sedang
+        ctrl.Rule(pendapatan['tinggi']   & biaya_operasional['tinggi'],         kinerja['sedang']),
+        # R9  : IF Pendapatan Rendah                      THEN Kinerja Rendah
+        ctrl.Rule(pendapatan['rendah'],                                          kinerja['rendah']),
+        # R10 : IF Biaya Tinggi                           THEN Kinerja Rendah
+        ctrl.Rule(biaya_operasional['tinggi'],                                   kinerja['rendah']),
+        # R11 : IF Biaya Rendah AND Kepuasan Tinggi       THEN Kinerja Tinggi
+        ctrl.Rule(biaya_operasional['rendah'] & kepuasan_wisatawan['tinggi'],   kinerja['tinggi']),
+        # R12 : IF Kepuasan Rendah                        THEN Kinerja Rendah
+        ctrl.Rule(kepuasan_wisatawan['rendah'],                                  kinerja['rendah']),
+        # R13 : IF Kepuasan Sedang                        THEN Kinerja Sedang
+        ctrl.Rule(kepuasan_wisatawan['sedang'],                                  kinerja['sedang']),
+        # R14 : IF Pengunjung Tinggi AND Harga Mahal      THEN Kinerja Sedang
+        ctrl.Rule(jumlah_pengunjung['tinggi'] & harga_tiket['mahal'],           kinerja['sedang']),
+        # R15 : IF Pengunjung Sedang AND Harga Sedang     THEN Kinerja Sedang
+        ctrl.Rule(jumlah_pengunjung['sedang'] & harga_tiket['sedang'],          kinerja['sedang']),
     ]
 
-    # ── Bangun Sistem Kontrol Fuzzy ───────────────────────────────────────────
-    kinerja_ctrl = ctrl.ControlSystem(rules)
-    sim = ctrl.ControlSystemSimulation(kinerja_ctrl)
+    # ── Bangun sistem kontrol dan simulasi ───────────────────────────────────
+    sistem_kontrol = ctrl.ControlSystem(aturan)
+    simulasi       = ctrl.ControlSystemSimulation(sistem_kontrol)
 
-    return sim, visitor_count, ticket_price, tourist_sat, revenue, op_cost, kinerja
+    return (simulasi,
+            jumlah_pengunjung, harga_tiket, kepuasan_wisatawan,
+            pendapatan, biaya_operasional, kinerja)
 
-# Build system once (cached)
-fuzzy_sim, var_visitor, var_ticket, var_sat, var_revenue, var_op, var_kinerja = build_fuzzy_system()
 
-#---------------------------------------#
-#       FUZZY MAMDANI COMPUTE           #
-#---------------------------------------#
+# Bangun sistem fuzzy sekali, kemudian di-cache oleh Streamlit
+(simulasi_fuzzy,
+ var_pengunjung, var_tiket, var_kepuasan,
+ var_pendapatan, var_biaya, var_kinerja) = bangun_sistem_fuzzy()
 
-RULE_TEXT = [
+
+# ──────────────────────────────────────────────────────── #
+#   TEKS ATURAN (untuk tampilan tabel di halaman Rule Base)#
+# ──────────────────────────────────────────────────────── #
+TEKS_ATURAN = [
     "IF Visitor Tinggi AND Satisfaction Tinggi THEN Kinerja Tinggi",
     "IF Visitor Sedang AND Satisfaction Tinggi THEN Kinerja Tinggi",
     "IF Visitor Rendah THEN Kinerja Rendah",
@@ -483,148 +516,236 @@ RULE_TEXT = [
     "IF Visitor Sedang AND Price Sedang THEN Kinerja Sedang",
 ]
 
-RULES_DEF = [
-    (1,  {"visitor_count":"tinggi", "tourist_sat":"tinggi"},              "tinggi"),
-    (2,  {"visitor_count":"sedang", "tourist_sat":"tinggi"},              "tinggi"),
-    (3,  {"visitor_count":"rendah"},                                       "rendah"),
-    (4,  {"ticket_price":"murah",   "tourist_sat":"tinggi"},              "tinggi"),
-    (5,  {"ticket_price":"mahal",   "tourist_sat":"rendah"},              "rendah"),
-    (6,  {"ticket_price":"sedang",  "tourist_sat":"sedang"},              "sedang"),
-    (7,  {"revenue":"tinggi",       "op_cost":"rendah"},                  "tinggi"),
-    (8,  {"revenue":"tinggi",       "op_cost":"tinggi"},                  "sedang"),
-    (9,  {"revenue":"rendah"},                                             "rendah"),
-    (10, {"op_cost":"tinggi"},                                             "rendah"),
-    (11, {"op_cost":"rendah",       "tourist_sat":"tinggi"},              "tinggi"),
-    (12, {"tourist_sat":"rendah"},                                         "rendah"),
-    (13, {"tourist_sat":"sedang"},                                         "sedang"),
-    (14, {"visitor_count":"tinggi", "ticket_price":"mahal"},              "sedang"),
-    (15, {"visitor_count":"sedang", "ticket_price":"sedang"},             "sedang"),
+# Definisi aturan dalam format (nomor, antecedent dict, konsekuen)
+DEFINISI_ATURAN = [
+    (1,  {"visitor_count": "tinggi", "tourist_sat": "tinggi"},             "tinggi"),
+    (2,  {"visitor_count": "sedang", "tourist_sat": "tinggi"},             "tinggi"),
+    (3,  {"visitor_count": "rendah"},                                       "rendah"),
+    (4,  {"ticket_price":  "murah",  "tourist_sat": "tinggi"},             "tinggi"),
+    (5,  {"ticket_price":  "mahal",  "tourist_sat": "rendah"},             "rendah"),
+    (6,  {"ticket_price":  "sedang", "tourist_sat": "sedang"},             "sedang"),
+    (7,  {"revenue":       "tinggi", "op_cost":     "rendah"},             "tinggi"),
+    (8,  {"revenue":       "tinggi", "op_cost":     "tinggi"},             "sedang"),
+    (9,  {"revenue":       "rendah"},                                       "rendah"),
+    (10, {"op_cost":       "tinggi"},                                       "rendah"),
+    (11, {"op_cost":       "rendah", "tourist_sat": "tinggi"},             "tinggi"),
+    (12, {"tourist_sat":   "rendah"},                                       "rendah"),
+    (13, {"tourist_sat":   "sedang"},                                       "sedang"),
+    (14, {"visitor_count": "tinggi", "ticket_price": "mahal"},             "sedang"),
+    (15, {"visitor_count": "sedang", "ticket_price": "sedang"},            "sedang"),
 ]
 
-def compute_fuzzification(c1, c2, c3, c4, c5):
-    """Hitung derajat keanggotaan menggunakan fuzz.interp_membership sesuai scikit-fuzzy."""
-    return {
+
+# ──────────────────────────────────────────────────────── #
+#   LANGKAH 4 – FUZZIFIKASI                                #
+#   Hitung derajat keanggotaan tiap variabel input         #
+#   menggunakan fuzz.interp_membership (Modul IX)          #
+# ──────────────────────────────────────────────────────── #
+def hitung_fuzzifikasi(c1, c2, c3, c4, c5):
+    """
+    Menghitung derajat keanggotaan (µ) setiap nilai input
+    terhadap himpunan fuzzy yang telah didefinisikan.
+    Menggunakan fuzz.interp_membership dari library scikit-fuzzy.
+    """
+    derajat = {
         "visitor_count": {
-            "rendah": float(fuzz.interp_membership(var_visitor.universe, var_visitor['rendah'].mf, c1)),
-            "sedang": float(fuzz.interp_membership(var_visitor.universe, var_visitor['sedang'].mf, c1)),
-            "tinggi": float(fuzz.interp_membership(var_visitor.universe, var_visitor['tinggi'].mf, c1)),
+            "rendah": float(fuzz.interp_membership(var_pengunjung.universe,
+                                                    var_pengunjung['rendah'].mf, c1)),
+            "sedang": float(fuzz.interp_membership(var_pengunjung.universe,
+                                                    var_pengunjung['sedang'].mf, c1)),
+            "tinggi": float(fuzz.interp_membership(var_pengunjung.universe,
+                                                    var_pengunjung['tinggi'].mf, c1)),
         },
         "ticket_price": {
-            "murah":  float(fuzz.interp_membership(var_ticket.universe, var_ticket['murah'].mf,  c2)),
-            "sedang": float(fuzz.interp_membership(var_ticket.universe, var_ticket['sedang'].mf, c2)),
-            "mahal":  float(fuzz.interp_membership(var_ticket.universe, var_ticket['mahal'].mf,  c2)),
+            "murah":  float(fuzz.interp_membership(var_tiket.universe,
+                                                    var_tiket['murah'].mf,  c2)),
+            "sedang": float(fuzz.interp_membership(var_tiket.universe,
+                                                    var_tiket['sedang'].mf, c2)),
+            "mahal":  float(fuzz.interp_membership(var_tiket.universe,
+                                                    var_tiket['mahal'].mf,  c2)),
         },
         "tourist_sat": {
-            "rendah": float(fuzz.interp_membership(var_sat.universe, var_sat['rendah'].mf, c3)),
-            "sedang": float(fuzz.interp_membership(var_sat.universe, var_sat['sedang'].mf, c3)),
-            "tinggi": float(fuzz.interp_membership(var_sat.universe, var_sat['tinggi'].mf, c3)),
+            "rendah": float(fuzz.interp_membership(var_kepuasan.universe,
+                                                    var_kepuasan['rendah'].mf, c3)),
+            "sedang": float(fuzz.interp_membership(var_kepuasan.universe,
+                                                    var_kepuasan['sedang'].mf, c3)),
+            "tinggi": float(fuzz.interp_membership(var_kepuasan.universe,
+                                                    var_kepuasan['tinggi'].mf, c3)),
         },
         "revenue": {
-            "rendah": float(fuzz.interp_membership(var_revenue.universe, var_revenue['rendah'].mf, c4)),
-            "sedang": float(fuzz.interp_membership(var_revenue.universe, var_revenue['sedang'].mf, c4)),
-            "tinggi": float(fuzz.interp_membership(var_revenue.universe, var_revenue['tinggi'].mf, c4)),
+            "rendah": float(fuzz.interp_membership(var_pendapatan.universe,
+                                                    var_pendapatan['rendah'].mf, c4)),
+            "sedang": float(fuzz.interp_membership(var_pendapatan.universe,
+                                                    var_pendapatan['sedang'].mf, c4)),
+            "tinggi": float(fuzz.interp_membership(var_pendapatan.universe,
+                                                    var_pendapatan['tinggi'].mf, c4)),
         },
         "op_cost": {
-            "rendah": float(fuzz.interp_membership(var_op.universe, var_op['rendah'].mf, c5)),
-            "sedang": float(fuzz.interp_membership(var_op.universe, var_op['sedang'].mf, c5)),
-            "tinggi": float(fuzz.interp_membership(var_op.universe, var_op['tinggi'].mf, c5)),
+            "rendah": float(fuzz.interp_membership(var_biaya.universe,
+                                                    var_biaya['rendah'].mf, c5)),
+            "sedang": float(fuzz.interp_membership(var_biaya.universe,
+                                                    var_biaya['sedang'].mf, c5)),
+            "tinggi": float(fuzz.interp_membership(var_biaya.universe,
+                                                    var_biaya['tinggi'].mf, c5)),
         },
     }
+    return derajat
 
-def compute_inference(fuzz_vals):
-    """Hitung α-predikat setiap rule menggunakan operator AND (MIN)."""
-    results = []
-    for (rno, antecedent, consequent) in RULES_DEF:
-        alphas = [fuzz_vals[var][term] for var, term in antecedent.items()]
-        alpha = min(alphas)  # AND = MIN (sesuai Modul IX)
-        results.append((rno, alpha, consequent))
-    return results
 
-def compute_aggregation(inf_results):
-    """Agregasi menggunakan MAX per kategori output."""
-    agg = {"tinggi": 0.0, "sedang": 0.0, "rendah": 0.0}
-    for (_, alpha, cons) in inf_results:
-        agg[cons] = max(agg[cons], alpha)
-    return agg
-
-def fuzzy_mamdani(c1, c2, c3, c4, c5):
+# ──────────────────────────────────────────────────────── #
+#   LANGKAH 5 – INFERENSI / PENALARAN                      #
+#   Hitung α-predikat setiap aturan dengan operator        #
+#   AND = MIN  (penalaran min-max Mamdani, Modul IX)       #
+# ──────────────────────────────────────────────────────── #
+def hitung_inferensi(derajat_keanggotaan):
     """
-    Hitung skor kinerja menggunakan ctrl.ControlSystemSimulation (scikit-fuzzy).
-    Defuzzifikasi centroid dilakukan otomatis oleh scikit-fuzzy.
-    Juga mengembalikan detail fuzzifikasi, inferensi, agregasi untuk tampilan.
+    Menerapkan setiap aturan IF-THEN pada nilai derajat keanggotaan.
+    Operator AND menggunakan operasi MIN sesuai penalaran Mamdani.
+    Mengembalikan list (nomor_aturan, alpha, konsekuen).
     """
-    # Clamp inputs to universe bounds
-    c1 = float(np.clip(c1, 52, 799))
-    c2 = float(np.clip(c2, 10, 99))
-    c3 = float(np.clip(c3, 0.0, 5.0))
+    hasil_inferensi = []
+    for (nomor, antecedent, konsekuen) in DEFINISI_ATURAN:
+        # Kumpulkan derajat keanggotaan semua anteceden dalam aturan ini
+        nilai_alpha = [derajat_keanggotaan[variabel][term]
+                       for variabel, term in antecedent.items()]
+        # Operator AND = MIN (penalaran min-max Mamdani)
+        alpha = min(nilai_alpha)
+        hasil_inferensi.append((nomor, alpha, konsekuen))
+    return hasil_inferensi
+
+
+# ──────────────────────────────────────────────────────── #
+#   LANGKAH 6 – AGREGASI                                   #
+#   Gabungkan output setiap aturan menggunakan MAX         #
+#   (operasi max pada konsekuen, Modul IX)                 #
+# ──────────────────────────────────────────────────────── #
+def hitung_agregasi(hasil_inferensi):
+    """
+    Melakukan agregasi himpunan fuzzy output menggunakan operasi MAX.
+    Setiap kategori output (rendah/sedang/tinggi) diambil nilai alpha terbesar.
+    """
+    agregasi = {"tinggi": 0.0, "sedang": 0.0, "rendah": 0.0}
+    for (_, alpha, konsekuen) in hasil_inferensi:
+        # Operasi MAX pada output konsekuen
+        agregasi[konsekuen] = max(agregasi[konsekuen], alpha)
+    return agregasi
+
+
+# ──────────────────────────────────────────────────────── #
+#   LANGKAH 7 – DEFUZZIFIKASI & HITUNG SKOR AKHIR          #
+#   Menggunakan ctrl.ControlSystemSimulation (scikit-fuzzy)#
+#   Metode defuzzifikasi: centroid                         #
+# ──────────────────────────────────────────────────────── #
+def hitung_fuzzy_mamdani(c1, c2, c3, c4, c5):
+    """
+    Fungsi utama SPK Fuzzy Mamdani.
+    Melakukan seluruh tahap:
+      1. Fuzzifikasi (fuzz.interp_membership)
+      2. Inferensi   (AND = MIN, per aturan)
+      3. Agregasi    (MAX per kategori output)
+      4. Defuzzifikasi (centroid via ctrl.ControlSystemSimulation)
+
+    Parameter:
+        c1 : Visitor Count
+        c2 : Ticket Price
+        c3 : Tourist Satisfaction
+        c4 : Revenue Generated
+        c5 : Operational Cost
+
+    Return:
+        skor     : nilai crisp hasil defuzzifikasi [0-100]
+        kategori : label "TINGGI" / "SEDANG" / "RENDAH"
+        derajat  : dict derajat keanggotaan (untuk tampilan)
+        inf_res  : list hasil inferensi per aturan (untuk tampilan)
+        agg      : dict nilai agregasi per kategori (untuk tampilan)
+    """
+    # Clamp nilai input agar berada dalam batas universe
+    c1 = float(np.clip(c1, 52,   799))
+    c2 = float(np.clip(c2, 10,    99))
+    c3 = float(np.clip(c3,  0.0,   5.0))
     c4 = float(np.clip(c4, 5000, 100000))
-    c5 = float(np.clip(c5, 2000, 50000))
+    c5 = float(np.clip(c5, 2000,  50000))
 
-    # Jalankan simulasi scikit-fuzzy (fuzzifikasi + inferensi + agregasi + defuzzifikasi)
-    fuzzy_sim.input['visitor_count'] = c1
-    fuzzy_sim.input['ticket_price']  = c2
-    fuzzy_sim.input['tourist_sat']   = c3
-    fuzzy_sim.input['revenue']       = c4
-    fuzzy_sim.input['op_cost']       = c5
-    fuzzy_sim.compute()
+    # Masukkan nilai input ke sistem simulasi
+    simulasi_fuzzy.input['visitor_count'] = c1
+    simulasi_fuzzy.input['ticket_price']  = c2
+    simulasi_fuzzy.input['tourist_sat']   = c3
+    simulasi_fuzzy.input['revenue']       = c4
+    simulasi_fuzzy.input['op_cost']       = c5
 
-    score = float(fuzzy_sim.output['kinerja'])
+    # Hitung inferensi + agregasi + defuzzifikasi (otomatis oleh scikit-fuzzy)
+    simulasi_fuzzy.compute()
+    skor = float(simulasi_fuzzy.output['kinerja'])
 
-    # Detail per-tahap untuk tampilan UI
-    fuzz_vals = compute_fuzzification(c1, c2, c3, c4, c5)
-    inf_res   = compute_inference(fuzz_vals)
-    agg       = compute_aggregation(inf_res)
-    kat       = get_kategori(score)
+    # Hitung ulang detail tiap tahap untuk keperluan tampilan UI
+    derajat  = hitung_fuzzifikasi(c1, c2, c3, c4, c5)
+    inf_res  = hitung_inferensi(derajat)
+    agg      = hitung_agregasi(inf_res)
+    kategori = tentukan_kategori(skor)
 
-    return score, kat, fuzz_vals, inf_res, agg
+    return skor, kategori, derajat, inf_res, agg
 
-def get_kategori(score):
-    if score >= 66.67:
+
+def tentukan_kategori(skor):
+    """
+    Menentukan label kategori kinerja berdasarkan nilai skor defuzzifikasi.
+    Threshold dibagi rata: Rendah < 33.33 ≤ Sedang < 66.67 ≤ Tinggi
+    """
+    if skor >= 66.67:
         return "TINGGI"
-    elif score >= 33.33:
+    elif skor >= 33.33:
         return "SEDANG"
     else:
         return "RENDAH"
 
+
 def get_result_style(kat):
+    """Mengembalikan nama kelas CSS dan emoji sesuai kategori hasil."""
     if kat == "TINGGI":
         return "result-box", "result-score", "🥇"
     elif kat == "SEDANG":
         return "result-box-sedang", "result-score-sedang", "🥈"
     return "result-box-rendah", "result-score-rendah", "🥉"
 
-#----------------------------------------#
-#        COMPUTE SCORES ALL ROWS         #
-#----------------------------------------#
+
+# ──────────────────────────────────────────────────────── #
+#   HITUNG SKOR SEMUA BARIS DATASET HANDICRAFT CENTER      #
+#   (dijalankan sekali, di-cache Streamlit)                #
+# ──────────────────────────────────────────────────────── #
 @st.cache_data
-def compute_all_scores(df):
-    scores = []
-    for _, row in df.iterrows():
-        s, k, _, _, _ = fuzzy_mamdani(
-            row["Visitor_Count"],
-            row["Ticket_Price"],
-            row["Tourist_Satisfaction"],
-            row["Revenue_Generated"],
-            row["Operational_Cost"],
+def hitung_semua_skor(df):
+    """
+    Menjalankan fungsi hitung_fuzzy_mamdani untuk setiap baris data
+    pada dataset Handicraft Center dan mengembalikan DataFrame hasil.
+    """
+    hasil = []
+    for _, baris in df.iterrows():
+        skor, kat, _, _, _ = hitung_fuzzy_mamdani(
+            baris["Visitor_Count"],
+            baris["Ticket_Price"],
+            baris["Tourist_Satisfaction"],
+            baris["Revenue_Generated"],
+            baris["Operational_Cost"],
         )
-        scores.append({"Skor_Kinerja": round(s, 2), "Kategori": k})
-    result = pd.DataFrame(scores)
-    return result
+        hasil.append({"Skor_Kinerja": round(skor, 2), "Kategori": kat})
+    return pd.DataFrame(hasil)
 
-score_df  = compute_all_scores(df_hc)
-df_result = pd.concat([df_hc.reset_index(drop=True), score_df], axis=1)
-df_ranked = df_result.sort_values("Skor_Kinerja", ascending=False).reset_index(drop=True)
-df_ranked.insert(0, "Rank", range(1, len(df_ranked) + 1))
+skor_df    = hitung_semua_skor(df_hc)
+df_hasil   = pd.concat([df_hc.reset_index(drop=True), skor_df], axis=1)
+df_ranking = df_hasil.sort_values("Skor_Kinerja", ascending=False).reset_index(drop=True)
+df_ranking.insert(0, "Rank", range(1, len(df_ranking) + 1))
 
-#----------------------------#
-#          SIDEBAR           #
-#----------------------------#
+
+# ──────────────────────────────────────────────────────── #
+#                       S I D E B A R                      #
+# ──────────────────────────────────────────────────────── #
 st.sidebar.markdown(
     """
     <div class="sidebar-top">
         <div class="sidebar-logo">
             SPK<br>MAMDANI
         </div>
+        <hr>
         <div class="sidebar-sub">
             Fuzzy Decision Support System
         </div>
@@ -636,7 +757,7 @@ st.sidebar.markdown(
 if "menu" not in st.session_state:
     st.session_state.menu = "Dashboard"
 
-menus = [
+daftar_menu = [
     "Dashboard",
     "Dataset",
     "Fuzzifikasi",
@@ -648,36 +769,36 @@ menus = [
     "Profile Tim"
 ]
 
-for item in menus:
+for item in daftar_menu:
     if st.sidebar.button(item, use_container_width=True):
         st.session_state.menu = item
 
 menu = st.session_state.menu
-st.markdown("""
-    """, unsafe_allow_html=True)
+st.markdown("", unsafe_allow_html=True)
 
-# ────────────────────────────────────────────────────── #
-#                   PAGE 1 – DASHBOARD                   #
-# ────────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#               HALAMAN 1 – DASHBOARD              #
+# ════════════════════════════════════════════════ #
 if menu == "Dashboard":
 
-    svg_db       = load_svg("files-db.svg")
-    svg_db_b64 = base64.b64encode(svg_db.encode()).decode()
+    svg_db      = load_svg("files-db.svg")
+    svg_db_b64  = base64.b64encode(svg_db.encode()).decode()
 
-    svg_visitor  = load_svg("visitor-count.svg")
+    svg_visitor     = load_svg("visitor-count.svg")
     svg_visitor_b64 = base64.b64encode(svg_visitor.encode()).decode()
 
-    svg_ticket   = load_svg("ticket.svg")
-    svg_ticket_b64 = base64.b64encode(svg_ticket.encode()).decode()
+    svg_ticket      = load_svg("ticket.svg")
+    svg_ticket_b64  = base64.b64encode(svg_ticket.encode()).decode()
 
-    svg_rate     = load_svg("rate.svg")
-    svg_rate_b64 = base64.b64encode(svg_rate.encode()).decode()
+    svg_rate        = load_svg("rate.svg")
+    svg_rate_b64    = base64.b64encode(svg_rate.encode()).decode()
 
-    svg_revenue  = load_svg("revenue-bag.svg")
+    svg_revenue     = load_svg("revenue-bag.svg")
     svg_revenue_b64 = base64.b64encode(svg_revenue.encode()).decode()
 
-    svg_ops      = load_svg("operational.svg")
-    svg_ops_b64 = base64.b64encode(svg_ops.encode()).decode()
+    svg_ops         = load_svg("operational.svg")
+    svg_ops_b64     = base64.b64encode(svg_ops.encode()).decode()
 
     st.markdown("""
     <style>
@@ -788,18 +909,14 @@ if menu == "Dashboard":
         border-radius: 22px;
         padding: 20px 12px;
         min-height: 220px;
-
         display:flex;
         flex-direction:column;
         align-items:center;
         justify-content:center;
-
         text-align:center;
-
         transition: all .28s ease;
         border:1px solid rgba(255,255,255,0.12);
     }
-
     .krit-card:hover{
         transform:translateY(-5px);
         box-shadow:
@@ -904,8 +1021,8 @@ if menu == "Dashboard":
     </style>
     """, unsafe_allow_html=True)
 
-    total_all = len(df_all)
-    total_hc  = len(df_hc)
+    total_semua = len(df_all)
+    total_hc    = len(df_hc)
 
     st.markdown("<div class='dash-title'>Dashboard</div>", unsafe_allow_html=True)
 
@@ -927,8 +1044,7 @@ if menu == "Dashboard":
                 text-align:center;
             '>
                 Sistem membantu menentukan peringkat kinerja destinasi wisata kerajinan (Handicraft Center)<br>
-                berdasarkan 5 kriteria menggunakan metode Fuzzy Mamdani Inference System (FMIS)<br>
-                via library <b>scikit-fuzzy</b> (ctrl.Antecedent, ctrl.Consequent, fuzz.trimf, fuzz.trapmf).
+                berdasarkan 5 kriteria menggunakan metode Fuzzy Mamdani Inference System (FMIS)
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -939,13 +1055,14 @@ if menu == "Dashboard":
             <div class="db-icon-wrap">
                 <img src="data:image/svg+xml;base64,{svg_db_b64}" class="db-icon">
             </div>
-            <div class="total-num">{total_all}</div>
+            <div class="total-num">{total_semua}</div>
             <div class="total-label">Total Data</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<div class='dash-section-title'>Kriteria Penilaian</div>", unsafe_allow_html=True)
 
+    # Data kriteria: (kode, nama, range, tipe, ikon svg)
     kriteria = [
         ("C1", "Visitor Count",        "(52-799)",         "Benefit", svg_visitor),
         ("C2", "Ticket Price",         "(10-99)",          "Cost",    svg_ticket),
@@ -954,49 +1071,48 @@ if menu == "Dashboard":
         ("C5", "Operational Cost",     "(2.000-50.000)",   "Cost",    svg_ops),
     ]
 
-    k_cols = st.columns(5)
-    for i, (code, name, rng, btype, svg_icon) in enumerate(kriteria):
-        badge = "<span class='badge-benefit'>Benefit</span>" if btype == "Benefit" else "<span class='badge-cost'>Cost</span>"
-        with k_cols[i]:
+    kolom_krit = st.columns(5)
+    for i, (kode, nama, rentang, tipe, ikon_svg) in enumerate(kriteria):
+        badge = ("<span class='badge-benefit'>Benefit</span>"
+                 if tipe == "Benefit"
+                 else "<span class='badge-cost'>Cost</span>")
+        with kolom_krit[i]:
             st.markdown(f"""
             <div class="krit-card">
-                <div style='width:48px;height:48px;margin-bottom:6px;'>{svg_icon}</div>
-                <div class="kc">{code}</div>
-                <div class="kname">{name}</div>
-                <div class="krange">{rng}</div>
+                <div style='width:48px;height:48px;margin-bottom:6px;'>{ikon_svg}</div>
+                <div class="kc">{kode}</div>
+                <div class="kname">{nama}</div>
+                <div class="krange">{rentang}</div>
                 {badge}
             </div>
             """, unsafe_allow_html=True)
 
     st.markdown("<div class='dash-section-title-yellow'>Ringkasan Sistem</div>", unsafe_allow_html=True)
 
-    r_cols = st.columns(4)
-    ring_data = [
-        (str(total_all), "Total Data", "(Dataset)"),
-        (str(total_hc), "Data Handicraft<br>Center", "(Setelah di Filter)"),
-        ("5", "Jumlah Kriteria", "(Kriteria)"),
-        ("Fuzzy Mamdani", " ", "Inference System"),
+    kolom_ring = st.columns(4)
+    data_ring = [
+        (str(total_semua), "Total Data",                "(Dataset)"),
+        (str(total_hc),    "Data Handicraft<br>Center", "(Setelah di Filter)"),
+        ("5",              "Jumlah Kriteria",            "(Kriteria)"),
+        ("Fuzzy Mamdani",  " ",                          "Inference System"),
     ]
 
-    for i, (val, label, sub) in enumerate(ring_data):
-        with r_cols[i]:
+    for i, (nilai, label, sub) in enumerate(data_ring):
+        with kolom_ring[i]:
             st.markdown(f"""
             <div class="ring-card-dark">
-                <div class="rnum">{val}</div>
+                <div class="rnum">{nilai}</div>
                 <div class="rlabel">{label}</div>
                 <div class="rsub">{sub}</div>
             </div>
             """, unsafe_allow_html=True)
 
-# ────────────────────────────────────────────────────── #
-#                    PAGE 2 – DATASET                    #
-# ────────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#               HALAMAN 2 – DATASET                #
+# ════════════════════════════════════════════════ #
 if menu == "Dataset":
-    st.markdown("""
-    <div class="page-title">
-        Dataset
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="page-title">Dataset</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns([8, 2])
 
@@ -1009,12 +1125,16 @@ if menu == "Dataset":
         """, unsafe_allow_html=True)
 
     with col2:
-        csv_data = df_hc[["Location_ID","Heritage_Type","Visitor_Count","Ticket_Price",
-                      "Tourist_Satisfaction","Revenue_Generated","Operational_Cost"]].to_csv(index=False)
+        # Tombol ekspor data hasil filter
+        csv_export = df_hc[
+            ["Location_ID", "Heritage_Type", "Visitor_Count",
+             "Ticket_Price", "Tourist_Satisfaction",
+             "Revenue_Generated", "Operational_Cost"]
+        ].to_csv(index=False)
 
         st.download_button(
             "Export CSV",
-            csv_data,
+            csv_export,
             "handicraft_center.csv",
             "text/csv"
         )
@@ -1026,113 +1146,122 @@ if menu == "Dataset":
     </div>
     """, unsafe_allow_html=True)
 
-    display_cols = ["Location_ID","Heritage_Type","Visitor_Count","Ticket_Price",
-                "Tourist_Satisfaction","Revenue_Generated","Operational_Cost"]
+    # Tampilkan kolom yang relevan dengan label ramah pengguna
+    kolom_tampil = [
+        "Location_ID", "Heritage_Type", "Visitor_Count",
+        "Ticket_Price", "Tourist_Satisfaction",
+        "Revenue_Generated", "Operational_Cost"
+    ]
+    df_tampil = df_hc[kolom_tampil].copy()
+    df_tampil.index = df_tampil.index + 1
+    df_tampil.columns = [
+        "Destinasi", "Heritage Type", "Visitor Count",
+        "Ticket Price", "Tourist Satisfaction",
+        "Revenue Generated", "Operational Cost"
+    ]
 
-    show_df = df_hc[display_cols].copy()
-    show_df.index = show_df.index + 1
-    show_df.columns = ["Destinasi","Heritage Type","Visitor Count","Ticket Price",
-                       "Tourist Satisfaction","Revenue Generated","Operational Cost"]
+    st.dataframe(df_tampil, use_container_width=True, height=450)
 
-    st.dataframe(show_df, use_container_width=True, height=450)
 
-# ────────────────────────────────────────────────────── #
-#                  PAGE 3 – FUZZIFIKASI                  #
-# ────────────────────────────────────────────────────── #
+# ════════════════════════════════════════════════ #
+#             HALAMAN 3 – FUZZIFIKASI              #
+# ════════════════════════════════════════════════ #
 if menu == "Fuzzifikasi":
-    st.markdown("""
-    <div class="page-title">
-        Fuzzifikasi
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="page-title">Fuzzifikasi</div>', unsafe_allow_html=True)
 
-    bg_color   = "#0f172a"
-    grid_color = "#1e1b4b"
-    text_color = "#e2e8f0"
+    warna_bg    = "#0f172a"
+    warna_grid  = "#1e1b4b"
+    warna_teks  = "#e2e8f0"
 
-    def plot_mf_skfuzzy(ax, variable, labels, title, colors_map):
-        """Plot fungsi keanggotaan dari variabel scikit-fuzzy."""
-        ax.set_facecolor(grid_color)
-        ax.spines[['top','right','left','bottom']].set_color('#374151')
-        ax.tick_params(colors=text_color, labelsize=7)
-        ax.set_title(title, color=text_color, fontsize=8, fontweight='bold', pad=6)
+    def plot_fungsi_keanggotaan(ax, variabel, label_himpunan, judul, peta_warna):
+        """
+        Menggambar grafik fungsi keanggotaan dari variabel scikit-fuzzy.
+        Menggunakan variabel.universe dan variabel[label].mf
+        sesuai contoh Modul IX (Gambar 8.11, 8.12, 8.13).
+        """
+        ax.set_facecolor(warna_grid)
+        ax.spines[['top', 'right', 'left', 'bottom']].set_color('#374151')
+        ax.tick_params(colors=warna_teks, labelsize=7)
+        ax.set_title(judul, color=warna_teks, fontsize=8, fontweight='bold', pad=6)
         ax.set_ylim(-0.05, 1.1)
-        ax.set_xlim(variable.universe[0], variable.universe[-1])
+        ax.set_xlim(variabel.universe[0], variabel.universe[-1])
         ax.grid(True, alpha=0.15, color='#6366f1')
-        for lbl in labels:
-            col = colors_map.get(lbl, "#818cf8")
-            ax.plot(variable.universe, variable[lbl].mf,
-                    color=col, lw=2, label=lbl.capitalize())
-        ax.legend(fontsize=6, framealpha=0.2, labelcolor=text_color,
-                  facecolor=grid_color, edgecolor='#374151')
+        for lbl in label_himpunan:
+            warna = peta_warna.get(lbl, "#818cf8")
+            ax.plot(variabel.universe, variabel[lbl].mf,
+                    color=warna, lw=2, label=lbl.capitalize())
+        ax.legend(fontsize=6, framealpha=0.2, labelcolor=warna_teks,
+                  facecolor=warna_grid, edgecolor='#374151')
 
     fig, axes = plt.subplots(2, 3, figsize=(14, 7))
-    fig.patch.set_facecolor(bg_color)
+    fig.patch.set_facecolor(warna_bg)
     plt.subplots_adjust(wspace=0.35, hspace=0.5)
 
-    plot_mf_skfuzzy(axes[0,0], var_visitor,
-                    ["rendah","sedang","tinggi"],
-                    "C1 – Visitor Count (Benefit)",
-                    {"rendah":"#ef4444","sedang":"#f59e0b","tinggi":"#10b981"})
-
-    plot_mf_skfuzzy(axes[0,1], var_ticket,
-                    ["murah","sedang","mahal"],
-                    "C2 – Ticket Price (Cost)",
-                    {"murah":"#3b82f6","sedang":"#f59e0b","mahal":"#ef4444"})
-
-    plot_mf_skfuzzy(axes[0,2], var_sat,
-                    ["rendah","sedang","tinggi"],
-                    "C3 – Tourist Satisfaction (Benefit)",
-                    {"rendah":"#ef4444","sedang":"#f59e0b","tinggi":"#10b981"})
-
-    plot_mf_skfuzzy(axes[1,0], var_revenue,
-                    ["rendah","sedang","tinggi"],
-                    "C4 – Revenue Generated (Benefit)",
-                    {"rendah":"#ef4444","sedang":"#f59e0b","tinggi":"#10b981"})
-
-    plot_mf_skfuzzy(axes[1,1], var_op,
-                    ["rendah","sedang","tinggi"],
-                    "C5 – Operational Cost (Cost)",
-                    {"rendah":"#10b981","sedang":"#f59e0b","tinggi":"#ef4444"})
-
-    plot_mf_skfuzzy(axes[1,2], var_kinerja,
-                    ["rendah","sedang","tinggi"],
-                    "Output – Kinerja Destinasi",
-                    {"rendah":"#ef4444","sedang":"#f59e0b","tinggi":"#10b981"})
+    # Plot C1 – Jumlah Pengunjung
+    plot_fungsi_keanggotaan(
+        axes[0, 0], var_pengunjung,
+        ["rendah", "sedang", "tinggi"],
+        "C1 – Visitor Count (Benefit)",
+        {"rendah": "#ef4444", "sedang": "#f59e0b", "tinggi": "#10b981"}
+    )
+    # Plot C2 – Harga Tiket
+    plot_fungsi_keanggotaan(
+        axes[0, 1], var_tiket,
+        ["murah", "sedang", "mahal"],
+        "C2 – Ticket Price (Cost)",
+        {"murah": "#3b82f6", "sedang": "#f59e0b", "mahal": "#ef4444"}
+    )
+    # Plot C3 – Kepuasan Wisatawan
+    plot_fungsi_keanggotaan(
+        axes[0, 2], var_kepuasan,
+        ["rendah", "sedang", "tinggi"],
+        "C3 – Tourist Satisfaction (Benefit)",
+        {"rendah": "#ef4444", "sedang": "#f59e0b", "tinggi": "#10b981"}
+    )
+    # Plot C4 – Pendapatan
+    plot_fungsi_keanggotaan(
+        axes[1, 0], var_pendapatan,
+        ["rendah", "sedang", "tinggi"],
+        "C4 – Revenue Generated (Benefit)",
+        {"rendah": "#ef4444", "sedang": "#f59e0b", "tinggi": "#10b981"}
+    )
+    # Plot C5 – Biaya Operasional
+    plot_fungsi_keanggotaan(
+        axes[1, 1], var_biaya,
+        ["rendah", "sedang", "tinggi"],
+        "C5 – Operational Cost (Cost)",
+        {"rendah": "#10b981", "sedang": "#f59e0b", "tinggi": "#ef4444"}
+    )
+    # Plot Output – Kinerja
+    plot_fungsi_keanggotaan(
+        axes[1, 2], var_kinerja,
+        ["rendah", "sedang", "tinggi"],
+        "Output – Kinerja Destinasi",
+        {"rendah": "#ef4444", "sedang": "#f59e0b", "tinggi": "#10b981"}
+    )
 
     st.pyplot(fig)
     plt.close()
 
     st.markdown("""
 <div class='fuzzy-note'>
-
-<div class='fuzzy-note-title'>
-    Keterangan Fungsi Keanggotaan
-</div>
-
+<div class='fuzzy-note-title'>Keterangan Fungsi Keanggotaan</div>
 <div class='fuzzy-note-text'>
 Diimplementasikan menggunakan <b>fuzz.trimf</b> (segitiga) dan <b>fuzz.trapmf</b> (trapesium)<br>
 dari library scikit-fuzzy, didefinisikan pada <b>ctrl.Antecedent</b> (input) dan <b>ctrl.Consequent</b> (output).
 </div>
-
 <div class='fuzzy-note-tags'>
-<span style='color:#E53935;'>Rendah / Murah</span>
-= Trapesium kiri (trapmf)
-
-<span style='color:#D4A017;'>Sedang</span>
-= Segitiga tengah (trimf)
-
-<span style='color:#00A86B;'>Tinggi / Mahal</span>
-= Trapesium kanan (trapmf)
-                
+<span style='color:#E53935;'>Rendah / Murah</span> = Trapesium kiri (trapmf) &nbsp;|&nbsp;
+<span style='color:#D4A017;'>Sedang</span> = Segitiga tengah (trimf) &nbsp;|&nbsp;
+<span style='color:#00A86B;'>Tinggi / Mahal</span> = Trapesium kanan (trapmf)
 </div>
-
 </div>
 """, unsafe_allow_html=True)
 
-# ────────────────────────────────────────────────────── #
-#                   PAGE 4 – RULE BASE                   #
-# ────────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#              HALAMAN 4 – RULE BASE               #
+# ════════════════════════════════════════════════ #
 elif menu == "Rule Base":
     st.markdown("""
     <div class="section-header">
@@ -1143,42 +1272,48 @@ elif menu == "Rule Base":
 
     st.markdown(f"""
     <div class="info-box">
-        📋 Total Rule: <b>15 aturan</b> &nbsp;|&nbsp; Operator: <b>AND (&amp;) = MIN</b> &nbsp;|&nbsp; Implementasi: <b>ctrl.Rule (scikit-fuzzy)</b>
+        📋 Total Rule: <b>15 aturan</b> &nbsp;|&nbsp;
+        Operator: <b>AND (&amp;) = MIN</b> &nbsp;|&nbsp;
+        Implementasi: <b>ctrl.Rule (scikit-fuzzy)</b>
     </div>
     """, unsafe_allow_html=True)
 
-    badge = {
+    # Badge warna per kategori konsekuen
+    badge_html = {
         "tinggi": "<span class='badge-tinggi'>Tinggi</span>",
         "sedang": "<span class='badge-sedang'>Sedang</span>",
         "rendah": "<span class='badge-rendah'>Rendah</span>",
     }
 
-    for i, (rule_txt, (rno, ant, cons)) in enumerate(zip(RULE_TEXT, RULES_DEF)):
+    for teks_aturan, (nomor, ant, konsekuen) in zip(TEKS_ATURAN, DEFINISI_ATURAN):
         col_no, col_rule, col_out = st.columns([0.5, 6, 1])
         with col_no:
             st.markdown(f"""
             <div style='background:rgba(99,102,241,0.3);border-radius:50%;width:32px;height:32px;
                         display:flex;align-items:center;justify-content:center;
-                        font-weight:800;color:#818cf8;font-size:.85rem;margin-top:6px;'>{rno}</div>
+                        font-weight:800;color:#818cf8;font-size:.85rem;margin-top:6px;'>
+                {nomor}
+            </div>
             """, unsafe_allow_html=True)
         with col_rule:
             st.markdown(f"""
             <div style='padding:10px 14px;background:rgba(30,27,75,0.6);
                         border:1px solid rgba(99,102,241,0.25);border-radius:8px;
                         font-size:.85rem;color:#e2e8f0;margin-top:4px;'>
-                {rule_txt}
+                {teks_aturan}
             </div>
             """, unsafe_allow_html=True)
         with col_out:
             st.markdown(f"""
             <div style='margin-top:10px;text-align:center;'>
-                {badge[cons]}
+                {badge_html[konsekuen]}
             </div>
             """, unsafe_allow_html=True)
 
-# ────────────────────────────────────────────────────── #
-#                  PAGE 5 – HITUNG SPK                   #
-# ────────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#             HALAMAN 5 – HITUNG SPK               #
+# ════════════════════════════════════════════════ #
 elif menu == "Hitung SPK":
     st.markdown("""
     <div class="section-header">
@@ -1187,7 +1322,7 @@ elif menu == "Hitung SPK":
     </div>
     """, unsafe_allow_html=True)
 
-    col_input, col_select = st.columns([3, 2])
+    col_input, col_pilih = st.columns([3, 2])
 
     with col_input:
         st.markdown("#### Input Nilai Kriteria")
@@ -1197,31 +1332,34 @@ elif menu == "Hitung SPK":
         </div>
         """, unsafe_allow_html=True)
 
-        c1_val = st.slider("C1 – Visitor Count (Benefit)", 52, 799, 400,
+        # Slider dan number_input sesuai Modul IX
+        c1_val = st.slider("C1 – Visitor Count (Benefit)",         52,  799, 400,
                            help="Semakin tinggi visitor, semakin baik")
-        c2_val = st.slider("C2 – Ticket Price (Cost)", 10, 99, 35,
+        c2_val = st.slider("C2 – Ticket Price (Cost)",             10,   99,  35,
                            help="Semakin murah, semakin baik")
-        c3_val = st.slider("C3 – Tourist Satisfaction (Benefit)", 0.0, 5.0, 4.0, 0.1,
+        c3_val = st.slider("C3 – Tourist Satisfaction (Benefit)", 0.0,  5.0, 4.0, 0.1,
                            help="Semakin tinggi, semakin baik")
-        c4_val = st.number_input("C4 – Revenue Generated (Benefit)", 5000, 100000, 50000, 1000,
+        c4_val = st.number_input("C4 – Revenue Generated (Benefit)",
+                                  5000, 100000, 50000, 1000,
                                   help="Semakin besar revenue, semakin baik")
-        c5_val = st.number_input("C5 – Operational Cost (Cost)", 2000, 50000, 20000, 500,
+        c5_val = st.number_input("C5 – Operational Cost (Cost)",
+                                  2000, 50000, 20000, 500,
                                   help="Semakin kecil cost, semakin baik")
 
-    with col_select:
+    with col_pilih:
         st.markdown("#### Pilih Alternatif / Destinasi")
-        dest_options = ["-- Input Manual --"] + df_hc["Location_ID"].tolist()
-        selected_dest = st.selectbox("Pilih Destinasi dari Dataset", dest_options)
+        pilihan_dest = ["-- Input Manual --"] + df_hc["Location_ID"].tolist()
+        destinasi_dipilih = st.selectbox("Pilih Destinasi dari Dataset", pilihan_dest)
 
-        if selected_dest != "-- Input Manual --":
-            row = df_hc[df_hc["Location_ID"] == selected_dest].iloc[0]
-            c1_val = int(row["Visitor_Count"])
-            c2_val = int(row["Ticket_Price"])
-            c3_val = float(row["Tourist_Satisfaction"])
-            c4_val = int(row["Revenue_Generated"])
-            c5_val = int(row["Operational_Cost"])
+        if destinasi_dipilih != "-- Input Manual --":
+            baris = df_hc[df_hc["Location_ID"] == destinasi_dipilih].iloc[0]
+            c1_val = int(baris["Visitor_Count"])
+            c2_val = int(baris["Ticket_Price"])
+            c3_val = float(baris["Tourist_Satisfaction"])
+            c4_val = int(baris["Revenue_Generated"])
+            c5_val = int(baris["Operational_Cost"])
             st.info(f"""
-            **Data Destinasi: {selected_dest}**
+            **Data Destinasi: {destinasi_dipilih}**
             - Visitor Count: {c1_val}
             - Ticket Price: {c2_val}
             - Satisfaction: {c3_val}
@@ -1243,33 +1381,34 @@ elif menu == "Hitung SPK":
     st.markdown("---")
 
     if st.button("▶ HITUNG SPK", use_container_width=True):
-        score, kat, fuzz_vals, inf_res, agg = fuzzy_mamdani(
+        skor, kat, derajat, inf_res, agg = hitung_fuzzy_mamdani(
             c1_val, c2_val, c3_val, c4_val, c5_val
         )
 
-        st.session_state["last_result"] = {
-            "score": score, "kat": kat, "fuzz": fuzz_vals,
-            "inf": inf_res, "agg": agg,
+        # Simpan hasil ke session_state agar bisa dibaca di halaman Proses Fuzzy
+        st.session_state["hasil_terakhir"] = {
+            "skor": skor, "kat": kat,
+            "derajat": derajat, "inf": inf_res, "agg": agg,
             "c1": c1_val, "c2": c2_val, "c3": c3_val,
             "c4": c4_val, "c5": c5_val,
         }
 
         box_class, score_class, emoji = get_result_style(kat)
-
         st.markdown(f"""
         <div class="{box_class}">
             <div style='font-size:2rem;margin-bottom:8px;'>{emoji}</div>
-            <div class="{score_class}">{score:.2f} / 100</div>
+            <div class="{score_class}">{skor:.2f} / 100</div>
             <div class="result-kategori">Kategori: {kat}</div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.success(f"✅ Perhitungan selesai! Skor Kinerja: **{score:.2f}** – Kategori: **{kat}**")
+        st.success(f"✅ Perhitungan selesai! Skor Kinerja: **{skor:.2f}** – Kategori: **{kat}**")
         st.info("💡 Lihat detail proses di menu **🔍 Proses Fuzzy**")
 
-# ───────────────────────────────────────────────────── #
-#                 PAGE 6 – PROSES FUZZY                 #
-# ───────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#             HALAMAN 6 – PROSES FUZZY             #
+# ════════════════════════════════════════════════ #
 elif menu == "Proses Fuzzy":
     st.markdown("""
     <div class="section-header">
@@ -1278,70 +1417,80 @@ elif menu == "Proses Fuzzy":
     </div>
     """, unsafe_allow_html=True)
 
-    if "last_result" not in st.session_state:
+    if "hasil_terakhir" not in st.session_state:
         st.warning("⚠️ Belum ada perhitungan. Silakan ke menu **⚙️ Hitung SPK** terlebih dahulu.")
         st.stop()
 
-    res   = st.session_state["last_result"]
-    score = res["score"]
+    res   = st.session_state["hasil_terakhir"]
+    skor  = res["skor"]
     kat   = res["kat"]
-    fuzz_vals = res["fuzz"]
+    derajat   = res["derajat"]
     inf   = res["inf"]
     agg   = res["agg"]
 
-    steps = ["1️⃣ Fuzzifikasi", "➡️ 2️⃣ Inferensi (Rule)", "➡️ 3️⃣ Agregasi (MAX)", "➡️ 4️⃣ Defuzzifikasi (Centroid)"]
+    # Tampilkan alur tahapan (sesuai Gambar 8.10 Modul IX)
+    tahapan = [
+        "1️⃣ Fuzzifikasi",
+        "➡️ 2️⃣ Inferensi (Rule)",
+        "➡️ 3️⃣ Agregasi (MAX)",
+        "➡️ 4️⃣ Defuzzifikasi (Centroid)"
+    ]
     st.markdown(f"""
     <div class="info-box" style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>
-        {''.join([f'<span style="font-weight:600;color:#818cf8;">{s}</span>' for s in steps])}
+        {''.join([f'<span style="font-weight:600;color:#818cf8;">{t}</span>' for t in tahapan])}
     </div>
     """, unsafe_allow_html=True)
 
-    col_l, col_r = st.columns(2)
+    col_kiri, col_kanan = st.columns(2)
 
-    with col_l:
-        # 1. Fuzzifikasi
+    with col_kiri:
+        # ── Tahap 1: Fuzzifikasi ──────────────────────────────────────────────
         st.markdown("#### 1️⃣ Fuzzifikasi (Derajat Keanggotaan via fuzz.interp_membership)")
-        var_info = {
-            "visitor_count": ("Visitor Count",       res["c1"], ["Rendah","Sedang","Tinggi"]),
-            "ticket_price":  ("Ticket Price",         res["c2"], ["Murah","Sedang","Mahal"]),
-            "tourist_sat":   ("Tourist Satisfaction", res["c3"], ["Rendah","Sedang","Tinggi"]),
-            "revenue":       ("Revenue Generated",    res["c4"], ["Rendah","Sedang","Tinggi"]),
-            "op_cost":       ("Operational Cost",     res["c5"], ["Rendah","Sedang","Tinggi"]),
+
+        info_variabel = {
+            "visitor_count": ("Visitor Count",       res["c1"], ["Rendah", "Sedang", "Tinggi"]),
+            "ticket_price":  ("Ticket Price",         res["c2"], ["Murah",  "Sedang", "Mahal"]),
+            "tourist_sat":   ("Tourist Satisfaction", res["c3"], ["Rendah", "Sedang", "Tinggi"]),
+            "revenue":       ("Revenue Generated",    res["c4"], ["Rendah", "Sedang", "Tinggi"]),
+            "op_cost":       ("Operational Cost",     res["c5"], ["Rendah", "Sedang", "Tinggi"]),
         }
 
-        fuzz_rows = []
-        for var, (name, val, terms) in var_info.items():
-            row_data = {"Kriteria": f"{name} ({val})"}
+        baris_fuzz = []
+        for var, (nama, nilai, terms) in info_variabel.items():
+            baris = {"Kriteria": f"{nama} ({nilai})"}
             for t in terms:
-                tk = t.lower()
-                row_data[t] = f"{fuzz_vals[var].get(tk, 0):.3f}"
-            fuzz_rows.append(row_data)
+                kunci = t.lower()
+                baris[t] = f"{derajat[var].get(kunci, 0):.3f}"
+            baris_fuzz.append(baris)
 
-        fuzz_table = pd.DataFrame(fuzz_rows)
-        st.dataframe(fuzz_table, use_container_width=True, hide_index=True)
+        tabel_fuzz = pd.DataFrame(baris_fuzz)
+        st.dataframe(tabel_fuzz, use_container_width=True, hide_index=True)
 
-        # 2. Inferensi
+        # ── Tahap 2: Inferensi ────────────────────────────────────────────────
         st.markdown("#### 2️⃣ Inferensi – Aturan Aktif (operator AND = MIN via ctrl.Rule)")
-        active_rules = [(rno, txt, alpha, cons)
-                        for (rno, alpha, cons), txt in zip(inf, RULE_TEXT)
-                        if alpha > 0]
 
-        if active_rules:
-            inf_data = []
-            for rno, txt, alpha, cons in active_rules:
-                badge_h = "🟢" if cons=="tinggi" else ("🟡" if cons=="sedang" else "🔴")
-                inf_data.append({
-                    "Rule": f"R{rno}",
-                    "Aturan": txt[:50]+"..." if len(txt)>50 else txt,
+        aturan_aktif = [
+            (nomor, teks, alpha, konsekuen)
+            for (nomor, alpha, konsekuen), teks in zip(inf, TEKS_ATURAN)
+            if alpha > 0
+        ]
+
+        if aturan_aktif:
+            data_inf = []
+            for nomor, teks, alpha, konsekuen in aturan_aktif:
+                ikon = "🟢" if konsekuen == "tinggi" else ("🟡" if konsekuen == "sedang" else "🔴")
+                data_inf.append({
+                    "Rule":     f"R{nomor}",
+                    "Aturan":   teks[:50] + "..." if len(teks) > 50 else teks,
                     "Nilai (α)": f"{alpha:.3f}",
-                    "Output": f"{badge_h} {cons.upper()}",
+                    "Output":   f"{ikon} {konsekuen.upper()}",
                 })
-            st.dataframe(pd.DataFrame(inf_data), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(data_inf), use_container_width=True, hide_index=True)
         else:
             st.warning("Tidak ada aturan yang aktif")
 
-    with col_r:
-        # 3. Agregasi
+    with col_kanan:
+        # ── Tahap 3: Agregasi ─────────────────────────────────────────────────
         st.markdown("#### 3️⃣ Agregasi (Metode MAX – ctrl.ControlSystem)")
         st.markdown(f"""
         <div class="info-box">
@@ -1352,41 +1501,44 @@ elif menu == "Proses Fuzzy":
         </div>
         """, unsafe_allow_html=True)
 
-        bg = "#0f172a"
+        bg_plot = "#0f172a"
         fig2, ax2 = plt.subplots(figsize=(5.5, 3))
-        fig2.patch.set_facecolor(bg)
+        fig2.patch.set_facecolor(bg_plot)
         ax2.set_facecolor("#1e1b4b")
 
-        xo = var_kinerja.universe
-        yr = np.fmin(agg["rendah"], var_kinerja['rendah'].mf)
-        ys = np.fmin(agg["sedang"], var_kinerja['sedang'].mf)
-        yt = np.fmin(agg["tinggi"], var_kinerja['tinggi'].mf)
-        y_agg = np.fmax(yr, np.fmax(ys, yt))
+        xo   = var_kinerja.universe
+        # Potong fungsi keanggotaan output sesuai nilai alpha (fmin)
+        y_rendah = np.fmin(agg["rendah"], var_kinerja['rendah'].mf)
+        y_sedang = np.fmin(agg["sedang"], var_kinerja['sedang'].mf)
+        y_tinggi = np.fmin(agg["tinggi"], var_kinerja['tinggi'].mf)
+        # Agregasi dengan MAX
+        y_agg = np.fmax(y_rendah, np.fmax(y_sedang, y_tinggi))
 
-        ax2.fill_between(xo, yr,    alpha=0.4, color="#ef4444", label="Rendah")
-        ax2.fill_between(xo, ys,    alpha=0.4, color="#f59e0b", label="Sedang")
-        ax2.fill_between(xo, yt,    alpha=0.4, color="#10b981", label="Tinggi")
+        ax2.fill_between(xo, y_rendah, alpha=0.4, color="#ef4444", label="Rendah")
+        ax2.fill_between(xo, y_sedang, alpha=0.4, color="#f59e0b", label="Sedang")
+        ax2.fill_between(xo, y_tinggi, alpha=0.4, color="#10b981", label="Tinggi")
         ax2.plot(xo, y_agg, color="#818cf8", lw=2, label="Agregasi")
-        ax2.axvline(score, color="white", lw=2, ls="--", label=f"Centroid={score:.1f}")
+        ax2.axvline(skor, color="white", lw=2, ls="--", label=f"Centroid={skor:.1f}")
 
         ax2.set_xlim(0, 100)
         ax2.set_ylim(0, 1.1)
         ax2.tick_params(colors="#e2e8f0", labelsize=7)
-        ax2.spines[['top','right','left','bottom']].set_color('#374151')
+        ax2.spines[['top', 'right', 'left', 'bottom']].set_color('#374151')
         ax2.grid(True, alpha=0.1, color='#6366f1')
         ax2.legend(fontsize=7, framealpha=0.2, labelcolor="#e2e8f0",
                    facecolor="#1e1b4b", edgecolor="#374151")
-        ax2.set_title("Fungsi Keanggotaan Output (Teraggregasi)", color="#e2e8f0", fontsize=8)
+        ax2.set_title("Fungsi Keanggotaan Output (Teraggregasi)",
+                      color="#e2e8f0", fontsize=8)
         st.pyplot(fig2)
         plt.close()
 
-        # 4. Defuzzifikasi
+        # ── Tahap 4: Defuzzifikasi ────────────────────────────────────────────
         st.markdown("#### 4️⃣ Defuzzifikasi (Centroid – ctrl.ControlSystemSimulation)")
         box_cls, score_cls, _ = get_result_style(kat)
         st.markdown(f"""
         <div class="{box_cls}">
             <div style='font-size:.85rem;color:#94a3b8;margin-bottom:4px;'>Nilai crisp (hasil akhir)</div>
-            <div class="{score_cls}" style='font-size:3rem;'>{score:.2f}</div>
+            <div class="{score_cls}" style='font-size:3rem;'>{skor:.2f}</div>
             <div style='font-size:.85rem;color:#94a3b8;'>Skor Kinerja</div>
             <div style='font-size:1.1rem;font-weight:700;color:#34d399;margin-top:8px;'>
                 Kategori : <b>{kat}</b>
@@ -1394,9 +1546,10 @@ elif menu == "Proses Fuzzy":
         </div>
         """, unsafe_allow_html=True)
 
-# ────────────────────────────────────────────────────── #
-#               PAGE 7 – HASIL dan RANKING               #
-# ────────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#           HALAMAN 7 – HASIL & RANKING            #
+# ════════════════════════════════════════════════ #
 elif menu == "Hasil & Ranking":
     st.markdown("""
     <div class="section-header">
@@ -1405,15 +1558,18 @@ elif menu == "Hasil & Ranking":
     </div>
     """, unsafe_allow_html=True)
 
-    col_t, col_best = st.columns([3, 2])
-    with col_t:
+    col_tabel, col_best = st.columns([3, 2])
+
+    with col_tabel:
         st.markdown("#### Peringkat Kinerja Destinasi")
 
-        show_rank = df_ranked[["Rank","Location_ID","Skor_Kinerja","Kategori"]].copy()
-        show_rank.columns = ["Rank", "Destinasi", "Skor Kinerja", "Kategori"]
+        df_tampil_rank = df_ranking[
+            ["Rank", "Location_ID", "Skor_Kinerja", "Kategori"]
+        ].copy()
+        df_tampil_rank.columns = ["Rank", "Destinasi", "Skor Kinerja", "Kategori"]
 
         st.dataframe(
-            show_rank,
+            df_tampil_rank,
             use_container_width=True,
             height=500,
             hide_index=True,
@@ -1425,45 +1581,49 @@ elif menu == "Hasil & Ranking":
         """, unsafe_allow_html=True)
 
     with col_best:
-        if len(df_ranked) > 0:
-            best = df_ranked.iloc[0]
-            best_name  = best["Location_ID"]
-            best_score = best["Skor_Kinerja"]
-            best_kat   = best["Kategori"]
+        if len(df_ranking) > 0:
+            terbaik = df_ranking.iloc[0]
 
             st.markdown(f"""
             <div class="result-box" style='margin-top:40px;'>
                 <div style='font-size:3rem;margin-bottom:8px;'>🥇</div>
                 <div style='font-size:.9rem;color:#94a3b8;'>DESTINASI TERBAIK</div>
-                <div style='font-size:1.5rem;font-weight:800;color:#e2e8f0;margin:8px 0;'>{best_name}</div>
+                <div style='font-size:1.5rem;font-weight:800;color:#e2e8f0;margin:8px 0;'>
+                    {terbaik["Location_ID"]}
+                </div>
                 <div style='font-size:.85rem;color:#94a3b8;'>Skor Kinerja</div>
-                <div class='result-score' style='font-size:2.5rem;'>{best_score:.2f} / 100</div>
+                <div class='result-score' style='font-size:2.5rem;'>
+                    {terbaik["Skor_Kinerja"]:.2f} / 100
+                </div>
                 <div style='font-size:.85rem;color:#94a3b8;'>Kategori</div>
-                <div style='font-size:1.3rem;font-weight:800;color:#34d399;'>⭐ {best_kat}</div>
+                <div style='font-size:1.3rem;font-weight:800;color:#34d399;'>
+                    ⭐ {terbaik["Kategori"]}
+                </div>
                 <div style='margin-top:12px;font-size:1.5rem;'>⭐⭐⭐⭐⭐</div>
             </div>
             """, unsafe_allow_html=True)
 
             st.markdown("#### 📊 Distribusi Kategori")
-            dist = df_ranked["Kategori"].value_counts()
-            for k, c in [("TINGGI","#059669"),("SEDANG","#d97706"),("RENDAH","#dc2626")]:
-                count = dist.get(k, 0)
-                pct = count / len(df_ranked) * 100
+            distribusi = df_ranking["Kategori"].value_counts()
+            for label, warna in [("TINGGI", "#059669"), ("SEDANG", "#d97706"), ("RENDAH", "#dc2626")]:
+                jumlah = distribusi.get(label, 0)
+                persen = jumlah / len(df_ranking) * 100
                 st.markdown(f"""
                 <div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
-                    <div style='width:90px;font-size:.82rem;color:#e2e8f0;font-weight:600;'>{k}</div>
+                    <div style='width:90px;font-size:.82rem;color:#e2e8f0;font-weight:600;'>{label}</div>
                     <div style='flex:1;background:#1e1b4b;border-radius:4px;height:16px;overflow:hidden;'>
-                        <div style='width:{pct:.0f}%;height:100%;background:{c};border-radius:4px;'></div>
+                        <div style='width:{persen:.0f}%;height:100%;background:{warna};border-radius:4px;'></div>
                     </div>
-                    <div style='width:60px;text-align:right;font-size:.82rem;color:{c};font-weight:700;'>
-                        {count} ({pct:.0f}%)
+                    <div style='width:60px;text-align:right;font-size:.82rem;color:{warna};font-weight:700;'>
+                        {jumlah} ({persen:.0f}%)
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-# ────────────────────────────────────────────────────── #
-#                  PAGE 8 – VISUALISASI                  #
-# ────────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#             HALAMAN 8 – VISUALISASI              #
+# ════════════════════════════════════════════════ #
 elif menu == "Visualisasi":
     st.markdown("""
     <div class="section-header">
@@ -1472,88 +1632,87 @@ elif menu == "Visualisasi":
     </div>
     """, unsafe_allow_html=True)
 
-    bg       = "#0f172a"
-    grid_col = "#1e1b4b"
-    txt_col  = "#e2e8f0"
+    warna_bg    = "#0f172a"
+    warna_grid  = "#1e1b4b"
+    warna_teks  = "#e2e8f0"
 
-    top_n  = st.slider("Jumlah destinasi yang ditampilkan", 5, 20, 10)
-    top_df = df_ranked.head(top_n)
+    jumlah_top = st.slider("Jumlah destinasi yang ditampilkan", 5, 20, 10)
+    df_top     = df_ranking.head(jumlah_top)
 
-    st.markdown(f"#### Grafik Peringkat Kinerja Destinasi Wisata Kerajinan (Handicraft Center)")
+    st.markdown("#### Grafik Peringkat Kinerja Destinasi Wisata Kerajinan (Handicraft Center)")
 
     fig3, ax3 = plt.subplots(figsize=(12, 5))
-    fig3.patch.set_facecolor(bg)
-    ax3.set_facecolor(grid_col)
+    fig3.patch.set_facecolor(warna_bg)
+    ax3.set_facecolor(warna_grid)
 
-    cat_colors = {"TINGGI": "#059669", "SEDANG": "#d97706", "RENDAH": "#dc2626"}
-    bar_colors = [cat_colors.get(k, "#ffffff") for k in top_df["Kategori"]]
+    # Warna batang disesuaikan dengan kategori
+    peta_warna_kat = {"TINGGI": "#059669", "SEDANG": "#d97706", "RENDAH": "#dc2626"}
+    warna_batang   = [peta_warna_kat.get(k, "#ffffff") for k in df_top["Kategori"]]
 
-    bars = ax3.bar(top_df["Location_ID"], top_df["Skor_Kinerja"],
-                   color=bar_colors, width=0.6, edgecolor="#1e1b4b", linewidth=0.5)
+    batang = ax3.bar(df_top["Location_ID"], df_top["Skor_Kinerja"],
+                     color=warna_batang, width=0.6,
+                     edgecolor="#1e1b4b", linewidth=0.5)
 
-    for bar, score in zip(bars, top_df["Skor_Kinerja"]):
-        ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.8,
-                 f"{score:.1f}", ha="center", va="bottom",
-                 color=txt_col, fontsize=8, fontweight="bold")
+    # Label skor di atas setiap batang
+    for bar, skor in zip(batang, df_top["Skor_Kinerja"]):
+        ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.8,
+                 f"{skor:.1f}", ha="center", va="bottom",
+                 color=warna_teks, fontsize=8, fontweight="bold")
 
     ax3.set_ylim(0, 110)
-    ax3.set_xlabel("Destinasi", color=txt_col, fontsize=9)
-    ax3.set_ylabel("Skor Kinerja", color=txt_col, fontsize=9)
+    ax3.set_xlabel("Destinasi",    color=warna_teks, fontsize=9)
+    ax3.set_ylabel("Skor Kinerja", color=warna_teks, fontsize=9)
     ax3.set_title("Grafik Peringkat Kinerja Destinasi Wisata Kerajinan (Handicraft Center)",
-                  color=txt_col, fontsize=11, fontweight="bold", pad=10)
-    ax3.tick_params(colors=txt_col, labelsize=7)
-    ax3.set_xticklabels(top_df["Location_ID"], rotation=45, ha="right")
-    ax3.spines[['top','right','left','bottom']].set_color('#374151')
+                  color=warna_teks, fontsize=11, fontweight="bold", pad=10)
+    ax3.tick_params(colors=warna_teks, labelsize=7)
+    ax3.set_xticklabels(df_top["Location_ID"], rotation=45, ha="right")
+    ax3.spines[['top', 'right', 'left', 'bottom']].set_color('#374151')
     ax3.grid(True, alpha=0.1, color="#6366f1", axis="y")
 
-    patches = [
+    legenda_patch = [
         mpatches.Patch(color="#059669", label="Tinggi"),
         mpatches.Patch(color="#d97706", label="Sedang"),
         mpatches.Patch(color="#dc2626", label="Rendah"),
     ]
-    legend = ax3.legend(
-        handles=patches,
-        fontsize=8,
-        framealpha=0.2,
-        labelcolor='white',
-        facecolor=grid_col,
-        edgecolor='#374151',
-        title="Kategori",
-        title_fontsize=8,
-        loc="upper right"
+    legenda = ax3.legend(
+        handles=legenda_patch, fontsize=8, framealpha=0.2,
+        labelcolor='white', facecolor=warna_grid, edgecolor='#374151',
+        title="Kategori", title_fontsize=8, loc="upper right"
     )
-    legend.get_title().set_color("white")
+    legenda.get_title().set_color("white")
 
     plt.tight_layout()
     st.pyplot(fig3)
     plt.close()
+
     st.markdown(f"""
     <div style='font-size:.75rem;color:#94a3b8;margin-top:4px;'>
-        ℹ️ Grafik ini menunjukkan {top_n} destinasi terbaik berdasarkan skor kinerja tertinggi.
+        ℹ️ Grafik ini menunjukkan {jumlah_top} destinasi terbaik berdasarkan skor kinerja tertinggi.
     </div>
     """, unsafe_allow_html=True)
 
     col_p1, col_p2 = st.columns(2)
+
     with col_p1:
         st.markdown("#### Distribusi Kategori Kinerja")
         fig4, ax4 = plt.subplots(figsize=(4, 4))
-        fig4.patch.set_facecolor(bg)
-        ax4.set_facecolor(bg)
+        fig4.patch.set_facecolor(warna_bg)
+        ax4.set_facecolor(warna_bg)
 
-        dist2      = df_ranked["Kategori"].value_counts()
-        pie_labels = dist2.index.tolist()
-        pie_values = dist2.values.tolist()
-        pie_colors = [cat_colors.get(k, "#6366f1") for k in pie_labels]
+        dist2       = df_ranking["Kategori"].value_counts()
+        label_pie   = dist2.index.tolist()
+        nilai_pie   = dist2.values.tolist()
+        warna_pie   = [peta_warna_kat.get(k, "#6366f1") for k in label_pie]
 
         wedges, texts, autotexts = ax4.pie(
-            pie_values, labels=pie_labels, autopct='%1.1f%%',
-            colors=pie_colors, startangle=90,
-            textprops={'color': txt_col, 'fontsize': 7},
+            nilai_pie, labels=label_pie, autopct='%1.1f%%',
+            colors=warna_pie, startangle=90,
+            textprops={'color': warna_teks, 'fontsize': 7},
         )
         for at in autotexts:
             at.set_color("white")
             at.set_fontweight("bold")
-        ax4.set_title("Distribusi Kategori", color=txt_col, fontsize=8.3, fontweight="bold")
+        ax4.set_title("Distribusi Kategori", color=warna_teks, fontsize=8.3, fontweight="bold")
         plt.tight_layout()
         st.pyplot(fig4)
         plt.close()
@@ -1561,28 +1720,31 @@ elif menu == "Visualisasi":
     with col_p2:
         st.markdown("#### Distribusi Skor Kinerja")
         fig5, ax5 = plt.subplots(figsize=(5, 4.72))
-        fig5.patch.set_facecolor(bg)
-        ax5.set_facecolor(grid_col)
+        fig5.patch.set_facecolor(warna_bg)
+        ax5.set_facecolor(warna_grid)
 
-        ax5.hist(df_ranked["Skor_Kinerja"], bins=20, color="#6366f1",
-                 edgecolor="#1e1b4b", alpha=0.8)
-        ax5.axvline(df_ranked["Skor_Kinerja"].mean(), color="#f59e0b",
-                    lw=2, ls="--", label=f"Mean: {df_ranked['Skor_Kinerja'].mean():.1f}")
-        ax5.set_xlabel("Skor Kinerja", color=txt_col, fontsize=9)
-        ax5.set_ylabel("Frekuensi",    color=txt_col, fontsize=9)
-        ax5.set_title("Distribusi Skor Kinerja", color=txt_col, fontsize=10, fontweight="bold")
-        ax5.tick_params(colors=txt_col, labelsize=7)
-        ax5.spines[['top','right','left','bottom']].set_color('#374151')
+        ax5.hist(df_ranking["Skor_Kinerja"], bins=20,
+                 color="#6366f1", edgecolor="#1e1b4b", alpha=0.8)
+        rata_rata = df_ranking["Skor_Kinerja"].mean()
+        ax5.axvline(rata_rata, color="#f59e0b", lw=2, ls="--",
+                    label=f"Mean: {rata_rata:.1f}")
+        ax5.set_xlabel("Skor Kinerja", color=warna_teks, fontsize=9)
+        ax5.set_ylabel("Frekuensi",    color=warna_teks, fontsize=9)
+        ax5.set_title("Distribusi Skor Kinerja",
+                      color=warna_teks, fontsize=10, fontweight="bold")
+        ax5.tick_params(colors=warna_teks, labelsize=7)
+        ax5.spines[['top', 'right', 'left', 'bottom']].set_color('#374151')
         ax5.grid(True, alpha=0.1, color="#6366f1")
-        ax5.legend(fontsize=8, framealpha=0.2, labelcolor=txt_col,
-                   facecolor=grid_col, edgecolor='#374151')
+        ax5.legend(fontsize=8, framealpha=0.2, labelcolor=warna_teks,
+                   facecolor=warna_grid, edgecolor='#374151')
         plt.tight_layout()
         st.pyplot(fig5)
         plt.close()
 
-# ────────────────────────────────────────────────────── #
-#                  PAGE 9 – PROFILE TIM                  #
-# ────────────────────────────────────────────────────── #
+
+# ════════════════════════════════════════════════ #
+#             HALAMAN 9 – PROFILE TIM              #
+# ════════════════════════════════════════════════ #
 elif menu == "Profile Tim":
     st.markdown("""
     <div class="section-header">
@@ -1591,9 +1753,9 @@ elif menu == "Profile Tim":
     </div>
     """, unsafe_allow_html=True)
 
-    col_about, col_info = st.columns([3, 2])
+    col_tentang, col_info = st.columns([3, 2])
 
-    with col_about:
+    with col_tentang:
         st.markdown("""
         <div class="card">
             <h3 style='color:#818cf8;margin:0 0 12px;'>Tentang Sistem</h3>
@@ -1610,17 +1772,18 @@ elif menu == "Profile Tim":
             "<h4 style='text-align:center;'>Anggota Kelompok</h4>",
             unsafe_allow_html=True
         )
-        members = [
-            ("👨‍💻", "Lathiva Safina Almasea",  "NIM. 123240226", "Prodi Informatika"),
-            ("👩‍🔬", "Mutiara Rahmawati Zalsa", "NIM. 123240257", "Prodi Informatika"),
+
+        anggota = [
+            ("👨‍💻", "Lathiva Safina Almasea",   "NIM. 123240226", "Prodi Informatika"),
+            ("👩‍🔬", "Mutiara Rahmawati Zalsa",  "NIM. 123240257", "Prodi Informatika"),
         ]
-        cols_m = st.columns(len(members))
-        for i, (icon, name, nim, prodi) in enumerate(members):
-            with cols_m[i]:
+        kolom_anggota = st.columns(len(anggota))
+        for i, (ikon, nama, nim, prodi) in enumerate(anggota):
+            with kolom_anggota[i]:
                 st.markdown(f"""
                 <div class="card" style='text-align:center;'>
-                    <div style='font-size:3rem;margin-bottom:8px;'>{icon}</div>
-                    <div style='font-weight:700;color:#e2e8f0;font-size:.95rem;'>{name}</div>
+                    <div style='font-size:3rem;margin-bottom:8px;'>{ikon}</div>
+                    <div style='font-weight:700;color:#e2e8f0;font-size:.95rem;'>{nama}</div>
                     <div style='font-size:.78rem;color:#a5b4fc;margin:4px 0;'>{nim}</div>
                     <div style='font-size:.75rem;color:#94a3b8;'>{prodi}</div>
                 </div>
@@ -1632,19 +1795,20 @@ elif menu == "Profile Tim":
             <h4 style='color:#818cf8;text-align:center'>Informasi Sistem</h4>
         """, unsafe_allow_html=True)
 
-        info_items = [
-            ("Metode",   "Fuzzy Mamdani"),
-            ("Bahasa",   "Python 3 (Streamlit)"),
-            ("Library",  "scikit-fuzzy, pandas, matplotlib, numpy"),
-            ("Dataset",  "Rural Heritage Tourism Industry Chain Dataset (Kaggle)"),
-            ("Filter",   "Heritage_Type = Handicraft Center (784 baris)"),
-            ("Tahun",    "2025/2026"),
+        info_sistem = [
+            ("Metode",  "Fuzzy Mamdani"),
+            ("Bahasa",  "Python 3 (Streamlit)"),
+            ("Library", "scikit-fuzzy, pandas, matplotlib, numpy"),
+            ("Dataset", "Rural Heritage Tourism Industry Chain Dataset (Kaggle)"),
+            ("Filter",  "Heritage_Type = Handicraft Center (784 baris)"),
+            ("Tahun",   "2025/2026"),
         ]
-        for label, val in info_items:
+        for label, nilai in info_sistem:
             st.markdown(f"""
             <div style='display:flex;margin-bottom:4px;align-items:flex-start;'>
-                <div style='min-width:100px;padding-left:20px;font-size:.8rem;color:#a5b4fc;font-weight:600;'>{label}</div>
-                <div style='font-size:.8rem;color:#e2e8f0;'>: {val}</div>
+                <div style='min-width:100px;padding-left:20px;font-size:.8rem;
+                            color:#a5b4fc;font-weight:600;'>{label}</div>
+                <div style='font-size:.8rem;color:#e2e8f0;'>: {nilai}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1663,10 +1827,14 @@ elif menu == "Profile Tim":
         </div>
         """, unsafe_allow_html=True)
 
+
+# ════════════════════════════════════════════════ #
+#                    FOOTER                        #
+# ════════════════════════════════════════════════ #
 st.markdown("""
 <div class="footer-card">
     SPK Kinerja Destinasi Wisata Kerajinan (Handicraft Tourism)
     Metode Fuzzy Mamdani (scikit-fuzzy) |
-    © Ivaa & Alsa, All I Wanna Do! Project Gacor! 2026.
+    © Ivaa &amp; Alsa, All I Wanna Do! Project Gacor! 2026.
 </div>
 """, unsafe_allow_html=True)
