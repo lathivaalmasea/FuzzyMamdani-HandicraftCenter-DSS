@@ -5,7 +5,7 @@ import skfuzzy as fuzz
 import skfuzzy.control as ctrl
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import base64
+import base64 # buat encode gambar.
 
 # ──────────────────────────────────────────────── #
 #   HELPER: muat file SVG dari direktori lokal     #
@@ -129,7 +129,7 @@ st.markdown("""
     box-shadow:
         0 0 0 3px rgba(213,37,24,0.2);
 }
-            
+                    
 /* CARD */
 .card {
     background: rgba(17,25,20,0.72);
@@ -169,6 +169,17 @@ st.markdown("""
 }
 
 /* BUTTON */
+            
+/* INPUT LABEL HITUNG SPK */
+
+.stSlider label,
+.stNumberInput label,
+.stSelectbox label {
+    color:#19532B !important;
+    font-family:'Poppins', sans-serif !important;
+    font-weight:600 !important;
+}
+            
 .stButton > button {
     background: linear-gradient(
         135deg, #22c55e, #16a34a) !important;
@@ -187,6 +198,21 @@ st.markdown("""
         0 10px 24px rgba(34,197,94,0.35) !important;
 }
 
+
+/* WARNING BOX - Proses Fuzzy*/
+div[data-baseweb="notification"] {
+    background:#D97706 !important;
+    border: none !important;
+    border-radius:14px !important;
+}
+
+div[data-baseweb="notification"] p {
+    color:#F3E8CC !important;
+    font-family:'Poppins', sans-serif !important;
+    font-weight:600 !important;
+    font-size:0.95rem !important;
+}
+            
 /* SECTION */
 .section-header {
     background: linear-gradient(
@@ -355,6 +381,40 @@ thead tr th {
 
 .note-high{
     color:#00A86B;
+}
+
+/* BADGE OUTPUT RULE BASE */
+.badge-tinggi,
+.badge-sedang,
+.badge-rendah{
+    font-family:'Poppins', sans-serif;
+    font-size:.82rem;
+    font-weight:700;
+    padding:6px 14px;
+    border-radius:12px;
+    display:inline-block;
+    min-width:78px;
+    text-align:center;
+    box-shadow:
+        0 4px 10px rgba(0,0,0,0.12);
+}
+
+/* TINGGI */
+.badge-tinggi{
+    background:#F3E8CC;
+    color:#1C4D2D;
+}
+
+/* SEDANG */
+.badge-sedang{
+    background:#F3E8CC;
+    color:#8B6A00;
+}
+
+/* RENDAH */
+.badge-rendah{
+    background:#F3E8CC;
+    color:#A61B1B;
 }
      
 </style>
@@ -781,6 +841,11 @@ st.markdown("", unsafe_allow_html=True)
 #               HALAMAN 1 – DASHBOARD              #
 # ════════════════════════════════════════════════ #
 if menu == "Dashboard":
+    st.markdown("""
+    <div class="page-title" style="color:#18542a;">
+        Dashboard
+    </div>
+    """, unsafe_allow_html=True)
 
     svg_db      = load_svg("files-db.svg")
     svg_db_b64  = base64.b64encode(svg_db.encode()).decode()
@@ -1112,7 +1177,11 @@ if menu == "Dashboard":
 #               HALAMAN 2 – DATASET                #
 # ════════════════════════════════════════════════ #
 if menu == "Dataset":
-    st.markdown('<div class="page-title">Dataset</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="page-title" style="color:#18542a;">
+        Dataset
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([8, 2])
 
@@ -1167,7 +1236,7 @@ if menu == "Dataset":
 #             HALAMAN 3 – FUZZIFIKASI              #
 # ════════════════════════════════════════════════ #
 if menu == "Fuzzifikasi":
-    st.markdown('<div class="page-title">Fuzzifikasi</div>', unsafe_allow_html=True)
+    st.markdown(""" <div class="page-title" style="color:#18542a;"> Fuzzifikasi </div> """, unsafe_allow_html=True)
 
     warna_bg    = "#0f172a"
     warna_grid  = "#1e1b4b"
@@ -1262,17 +1331,13 @@ dari library scikit-fuzzy, didefinisikan pada <b>ctrl.Antecedent</b> (input) dan
 # ════════════════════════════════════════════════ #
 #              HALAMAN 4 – RULE BASE               #
 # ════════════════════════════════════════════════ #
-elif menu == "Rule Base":
-    st.markdown("""
-    <div class="section-header">
-        <span class="section-num">4</span>
-        RULE BASE – Aturan Fuzzy (IF – THEN)
-    </div>
-    """, unsafe_allow_html=True)
+if menu == "Rule Base":
+    st.markdown(""" <div class="page-title" style="color:#18542a;"> RULE BASE - Aturan Fuzzy (IF - THEN) </div> """, unsafe_allow_html=True)
 
     st.markdown(f"""
-    <div class="info-box">
-        📋 Total Rule: <b>15 aturan</b> &nbsp;|&nbsp;
+    <div class="info-box"
+        style='font-family:Poppins,sans-serif; color:#1C4D2D; font-weight:500; font-size:.95rem;'>
+        Total Rule: <b>15 aturan</b> &nbsp;|&nbsp;
         Operator: <b>AND (&amp;) = MIN</b> &nbsp;|&nbsp;
         Implementasi: <b>ctrl.Rule (scikit-fuzzy)</b>
     </div>
@@ -1289,20 +1354,23 @@ elif menu == "Rule Base":
         col_no, col_rule, col_out = st.columns([0.5, 6, 1])
         with col_no:
             st.markdown(f"""
-            <div style='background:rgba(99,102,241,0.3);border-radius:50%;width:32px;height:32px;
+            <div style= 'background: #1C4D2D;border-radius:50%;width:38px;height:38px;
                         display:flex;align-items:center;justify-content:center;
-                        font-weight:800;color:#818cf8;font-size:.85rem;margin-top:6px;'>
+                        font-weight:700;color:#F8C537;font-size:.9rem;margin-top:6px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.16);'>
                 {nomor}
             </div>
             """, unsafe_allow_html=True)
         with col_rule:
             st.markdown(f"""
-            <div style='padding:10px 14px;background:rgba(30,27,75,0.6);
-                        border:1px solid rgba(99,102,241,0.25);border-radius:8px;
-                        font-size:.85rem;color:#e2e8f0;margin-top:4px;'>
-                {teks_aturan}
-            </div>
-            """, unsafe_allow_html=True)
+            <div style='padding:14px 18px; background:rgba(22,40,28,0.96); backdrop-filter:blur(14px);
+                        border:1px solid rgba(255,255,255,0.08); border-radius:16px; font-family:Poppins,sans-serif;
+                        font-size:.94rem; font-weight:500; line-height:1.7; color:#F3E8CC; margin-top:4px;
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.22);'>
+        {teks_aturan}
+    </div>
+    """, unsafe_allow_html=True)
+            
         with col_out:
             st.markdown(f"""
             <div style='margin-top:10px;text-align:center;'>
@@ -1314,20 +1382,29 @@ elif menu == "Rule Base":
 # ════════════════════════════════════════════════ #
 #             HALAMAN 5 – HITUNG SPK               #
 # ════════════════════════════════════════════════ #
-elif menu == "Hitung SPK":
-    st.markdown("""
-    <div class="section-header">
-        <span class="section-num">5</span>
-        HITUNG SPK – Input Data &amp; Eksekusi
-    </div>
-    """, unsafe_allow_html=True)
+if menu == "Hitung SPK":
+    st.markdown(""" <div class="page-title" style="color:#18542a;"> HITUNG SPK - Input Data & Eksekusi </div> """, unsafe_allow_html=True)
 
     col_input, col_pilih = st.columns([3, 2])
 
     with col_input:
-        st.markdown("#### Input Nilai Kriteria")
         st.markdown("""
-        <div class="info-box" style='font-size:.82rem;'>
+            <h4 style='
+            color:#19532B;
+            font-family:Poppins,sans-serif;
+            font-size:1.7rem;
+            font-weight:700;
+            margin-bottom:6px;
+            '>
+                Input Nilai Kriteria
+            </h4>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="info-box" style='font-size:.82rem;
+                    font-family:Poppins,sans-serif;
+                    color:#19532B;
+                    font-weight:500;'>
             Masukkan nilai untuk menghitung kinerja destinasi
         </div>
         """, unsafe_allow_html=True)
@@ -1347,7 +1424,18 @@ elif menu == "Hitung SPK":
                                   help="Semakin kecil cost, semakin baik")
 
     with col_pilih:
-        st.markdown("#### Pilih Alternatif / Destinasi")
+        st.markdown("""
+            <h4 style='
+            color:#19532B;
+            font-family:Poppins,sans-serif;
+            font-size:1.7rem;
+            font-weight:700;
+            margin-bottom:6px;
+            '>
+                Pilih Alternatif / Destinasi
+            </h4>
+        """, unsafe_allow_html=True)
+
         pilihan_dest = ["-- Input Manual --"] + df_hc["Location_ID"].tolist()
         destinasi_dipilih = st.selectbox("Pilih Destinasi dari Dataset", pilihan_dest)
 
@@ -1367,9 +1455,24 @@ elif menu == "Hitung SPK":
             - Op. Cost: {c5_val:,}
             """)
 
-        st.markdown("#### Keterangan Kriteria")
         st.markdown("""
-        <div class="info-box" style='font-size:.8rem;'>
+            <h4 style='
+            color:#19532B;
+            font-family:Poppins,sans-serif;
+            font-size:1.7rem;
+            font-weight:700;
+            margin-bottom:6px;
+            '>
+                Keterangan Kriteria
+            </h4>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div class="info-box" style='font-size:.8rem;
+                    font-family:Poppins,sans-serif;
+                    color:#19532B;
+                    font-weight:500;
+                    '>
             <b>C1 Benefit:</b> Semakin besar semakin baik<br>
             <b>C2 Cost:</b> Semakin kecil semakin baik<br>
             <b>C3 Benefit:</b> Semakin besar semakin baik<br>
@@ -1409,15 +1512,11 @@ elif menu == "Hitung SPK":
 # ════════════════════════════════════════════════ #
 #             HALAMAN 6 – PROSES FUZZY             #
 # ════════════════════════════════════════════════ #
-elif menu == "Proses Fuzzy":
-    st.markdown("""
-    <div class="section-header">
-        <span class="section-num">6</span>
-        PROSES FUZZY – Detail Perhitungan (Mamdani via scikit-fuzzy)
-    </div>
-    """, unsafe_allow_html=True)
+if menu == "Proses Fuzzy":
+    st.markdown(""" <div class="page-title" style="color:#18542a;"> PROSES FUZZY - Detail Perhitungan (Mamdani via scikit-fuzzy) </div> """, unsafe_allow_html=True)
 
     if "hasil_terakhir" not in st.session_state:
+
         st.warning("⚠️ Belum ada perhitungan. Silakan ke menu **⚙️ Hitung SPK** terlebih dahulu.")
         st.stop()
 
@@ -1539,7 +1638,8 @@ elif menu == "Proses Fuzzy":
         <div class="{box_cls}">
             <div style='font-size:.85rem;color:#94a3b8;margin-bottom:4px;'>Nilai crisp (hasil akhir)</div>
             <div class="{score_cls}" style='font-size:3rem;'>{skor:.2f}</div>
-            <div style='font-size:.85rem;color:#94a3b8;'>Skor Kinerja</div>
+            <div style='font-size:.85rem;color:#19532B;font-family:Poppins,sans-serif;
+                    font-weight:600;'>Skor Kinerja</div>
             <div style='font-size:1.1rem;font-weight:700;color:#34d399;margin-top:8px;'>
                 Kategori : <b>{kat}</b>
             </div>
@@ -1550,18 +1650,17 @@ elif menu == "Proses Fuzzy":
 # ════════════════════════════════════════════════ #
 #           HALAMAN 7 – HASIL & RANKING            #
 # ════════════════════════════════════════════════ #
-elif menu == "Hasil & Ranking":
-    st.markdown("""
-    <div class="section-header">
-        <span class="section-num">7</span>
-        HASIL &amp; RANKING – Peringkat Alternatif
-    </div>
-    """, unsafe_allow_html=True)
+if menu == "Hasil & Ranking":
+    st.markdown(""" <div class="page-title" style="color:#18542a;"> HASIL & RANKING - Peringkat Alternatif </div> """, unsafe_allow_html=True)
 
     col_tabel, col_best = st.columns([3, 2])
 
     with col_tabel:
-        st.markdown("#### Peringkat Kinerja Destinasi")
+        st.markdown("""
+            <h3 style="color:#18542a;font-family:Poppins,sans-serif;font-weight:700;margin-bottom:10px;">
+                        Peringkat Kinerja Destinasi
+            </h3>
+        """, unsafe_allow_html=True)
 
         df_tampil_rank = df_ranking[
             ["Rank", "Location_ID", "Skor_Kinerja", "Kategori"]
@@ -1575,8 +1674,9 @@ elif menu == "Hasil & Ranking":
             hide_index=True,
         )
         st.markdown("""
-        <div style='font-size:.75rem;color:#94a3b8;margin-top:4px;'>
-            ℹ️ Semakin tinggi skor, semakin baik kinerja destinasi wisata kerajinan.
+        <div style='font-size:.8rem; color:#F3E8CC; margin-top:6px;
+                    font-family:Poppins,sans-serif;font-weight:500;'>
+            Semakin tinggi skor, semakin baik kinerja destinasi wisata kerajinan.
         </div>
         """, unsafe_allow_html=True)
 
@@ -1585,25 +1685,34 @@ elif menu == "Hasil & Ranking":
             terbaik = df_ranking.iloc[0]
 
             st.markdown(f"""
-            <div class="result-box" style='margin-top:40px;'>
+            <div class="result-box" style='margin-top:40px; background:#F3E8CC;
+                        border:2px solid #19532B; backdrop-filter:none;'>
                 <div style='font-size:3rem;margin-bottom:8px;'>🥇</div>
-                <div style='font-size:.9rem;color:#94a3b8;'>DESTINASI TERBAIK</div>
-                <div style='font-size:1.5rem;font-weight:800;color:#e2e8f0;margin:8px 0;'>
+                <div style='font-size:.9rem;color:#19532B;font-family:
+                            Poppins,sans-serif;font-weight:600;'>DESTINASI TERBAIK</div>
+                <div style='font-size:1.5rem;font-weight:800;color:#19532B;
+                            margin:8px 0;font-family:Poppins,sans-serif;'>
                     {terbaik["Location_ID"]}
                 </div>
-                <div style='font-size:.85rem;color:#94a3b8;'>Skor Kinerja</div>
-                <div class='result-score' style='font-size:2.5rem;'>
+
+                <div style='font-size:.85rem;color:#19532B;font-family:Poppins,sans-serif;'>Skor Kinerja</div>
+                <div style='font-size:2.5rem;font-weight:800;color:#19532B;font-family:Poppins,sans-serif;margin:8px 0;'>
                     {terbaik["Skor_Kinerja"]:.2f} / 100
                 </div>
-                <div style='font-size:.85rem;color:#94a3b8;'>Kategori</div>
-                <div style='font-size:1.3rem;font-weight:800;color:#34d399;'>
+
+                <div style='font-size:.85rem;color:#19532B;font-family:Poppins,sans-serif;'>Kategori</div>
+                <div style='font-size:1.3rem;font-weight:800;color:#19532B;font-family:Poppins,sans-serif;'>
                     ⭐ {terbaik["Kategori"]}
                 </div>
                 <div style='margin-top:12px;font-size:1.5rem;'>⭐⭐⭐⭐⭐</div>
             </div>
             """, unsafe_allow_html=True)
 
-            st.markdown("#### 📊 Distribusi Kategori")
+            st.markdown("""
+                <h4 style='color:#F3E8CC;font-family:Poppins,sans-serif;font-weight:700;margin-top:18px;'>
+                    Distribusi Kategori </h4>
+            """, unsafe_allow_html=True)
+
             distribusi = df_ranking["Kategori"].value_counts()
             for label, warna in [("TINGGI", "#059669"), ("SEDANG", "#d97706"), ("RENDAH", "#dc2626")]:
                 jumlah = distribusi.get(label, 0)
@@ -1611,7 +1720,7 @@ elif menu == "Hasil & Ranking":
                 st.markdown(f"""
                 <div style='display:flex;align-items:center;gap:10px;margin-bottom:8px;'>
                     <div style='width:90px;font-size:.82rem;color:#e2e8f0;font-weight:600;'>{label}</div>
-                    <div style='flex:1;background:#1e1b4b;border-radius:4px;height:16px;overflow:hidden;'>
+                    <div style='flex:1;background:#F3E8CC;border-radius:4px;height:16px;overflow:hidden;'>
                         <div style='width:{persen:.0f}%;height:100%;background:{warna};border-radius:4px;'></div>
                     </div>
                     <div style='width:60px;text-align:right;font-size:.82rem;color:{warna};font-weight:700;'>
@@ -1624,13 +1733,8 @@ elif menu == "Hasil & Ranking":
 # ════════════════════════════════════════════════ #
 #             HALAMAN 8 – VISUALISASI              #
 # ════════════════════════════════════════════════ #
-elif menu == "Visualisasi":
-    st.markdown("""
-    <div class="section-header">
-        <span class="section-num">8</span>
-        VISUALISASI – Grafik Hasil Ranking
-    </div>
-    """, unsafe_allow_html=True)
+if menu == "Visualisasi":
+    st.markdown(""" <div class="page-title" style="color:#18542a;"> VISUALISASI - Grafik Hasil Ranking </div> """, unsafe_allow_html=True)
 
     warna_bg    = "#0f172a"
     warna_grid  = "#1e1b4b"
@@ -1745,13 +1849,8 @@ elif menu == "Visualisasi":
 # ════════════════════════════════════════════════ #
 #             HALAMAN 9 – PROFILE TIM              #
 # ════════════════════════════════════════════════ #
-elif menu == "Profile Tim":
-    st.markdown("""
-    <div class="section-header">
-        <span class="section-num">9</span>
-        PROFILE TIM
-    </div>
-    """, unsafe_allow_html=True)
+if menu == "Profile Tim":
+    st.markdown(""" <div class="page-title" style="color:#18542a;"> PROFILE TIM </div> """, unsafe_allow_html=True)
 
     col_tentang, col_info = st.columns([3, 2])
 
@@ -1783,7 +1882,7 @@ elif menu == "Profile Tim":
                 st.markdown(f"""
                 <div class="card" style='text-align:center;'>
                     <div style='font-size:3rem;margin-bottom:8px;'>{ikon}</div>
-                    <div style='font-weight:700;color:#e2e8f0;font-size:.95rem;'>{nama}</div>
+                    <div style='font-weight:700;color:#F3E8CC;font-size:.95rem;font-family:Poppins,sans-serif;'>{nama}</div>
                     <div style='font-size:.78rem;color:#a5b4fc;margin:4px 0;'>{nim}</div>
                     <div style='font-size:.75rem;color:#94a3b8;'>{prodi}</div>
                 </div>
